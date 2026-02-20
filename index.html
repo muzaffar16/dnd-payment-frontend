@@ -38,9 +38,16 @@
         }
       }
 
-      function renderResult(title, data) {
-        resultEl.style.display = 'block';
-        resultEl.textContent = title + '\n\n' + JSON.stringify(data, null, 2);
+      function showOutcome(isSuccess, message, details) {
+        statusEl.textContent = message;
+        resultEl.style.display = 'none';
+        resultEl.textContent = '';
+
+        if (isSuccess) {
+          console.log('[Payment Success] ' + message, details || {});
+        } else {
+          console.error('[Payment Error] ' + message, details || {});
+        }
       }
 
       async function handleGatewayResponse() {
@@ -65,6 +72,11 @@
 
         if (responseJwt) {
           try {
+            console.log('[Payment Verify] Sending callback JWT to backend', {
+              endpoint: api('/api/v1/payments/response/verify'),
+              hasJwt: true
+            });
+
             const verifyRes = await fetch(api('/api/v1/payments/response/verify'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -72,36 +84,46 @@
             });
             const verifiedPayload = await verifyRes.json();
 
+            console.log('[Payment Verify] Backend verify response received', {
+              status: verifyRes.status,
+              ok: verifyRes.ok,
+              verified: !!verifiedPayload.verified
+            });
+
             if (!verifyRes.ok || !verifiedPayload.verified) {
               throw new Error(verifiedPayload.error || 'JWT verification failed');
             }
 
             const gatewayResponse = verifiedPayload.gatewayResponse || {};
             const approved = gatewayResponse.errorcode === '0' || errorcode === '0';
-            statusEl.textContent = approved
-              ? 'Payment approved. Transaction: ' + (gatewayResponse.transactionreference || transactionreference)
-              : 'Payment declined. Code: ' + (gatewayResponse.errorcode || errorcode || 'unknown');
+            const message = approved
+              ? 'Payment successful'
+              : 'Payment failed. Code: ' + (gatewayResponse.errorcode || errorcode || 'unknown');
 
-            renderResult('Verified callback response', {
+            showOutcome(approved, message, {
               summary: basicResult,
               gatewayResponse,
               decodedPayload: verifiedPayload.decoded && verifiedPayload.decoded.payload
             });
           } catch (error) {
             const decodedClientSide = decodeJwtPayload(responseJwt);
-            statusEl.textContent = 'Received callback JWT, but verification failed: ' + error.message;
-            renderResult('Unverified callback response (fallback decode)', {
+            showOutcome(false, 'Payment verification failed: ' + error.message, {
               summary: basicResult,
               decodedPayload: decodedClientSide && decodedClientSide.payload,
               verificationError: error.message
             });
           }
         } else {
+          console.log('[Payment Verify] No callback JWT found; skipping backend verify', {
+            errorcode,
+            transactionreference
+          });
+
           const approved = errorcode === '0';
-          statusEl.textContent = approved
-            ? 'Payment approved. Transaction: ' + transactionreference
-            : 'Payment declined. Code: ' + (errorcode || 'unknown');
-          renderResult('Callback query response', basicResult);
+          const message = approved
+            ? 'Payment successful'
+            : 'Payment failed. Code: ' + (errorcode || 'unknown');
+          showOutcome(approved, message, basicResult);
         }
 
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -109,12 +131,12 @@
 
       window.addEventListener('error', (event) => {
         const message = event.message || (event.error && event.error.message) || 'Unknown error';
-        statusEl.textContent = 'Error: ' + message;
+        showOutcome(false, 'Error: ' + message, { source: 'window.error' });
       });
 
       window.addEventListener('unhandledrejection', (event) => {
         const message = (event.reason && event.reason.message) || event.reason || 'Unknown rejection';
-        statusEl.textContent = 'Error: ' + message;
+        showOutcome(false, 'Error: ' + message, { source: 'window.unhandledrejection' });
       });
 
       if (notificationFrame) {
@@ -175,13 +197,13 @@
 
         if (gpayInit && typeof gpayInit.then === 'function') {
           gpayInit.catch((err) => {
-            statusEl.textContent = 'Error: ' + (err && err.message ? err.message : String(err));
+            showOutcome(false, 'Error: ' + (err && err.message ? err.message : String(err)), { source: 'GooglePay.init' });
           });
         }
 
         statusEl.textContent = 'Google Pay initialized. Button should appear above.';
       } catch (error) {
-        statusEl.textContent = 'Error: ' + error.message;
+        showOutcome(false, 'Error: ' + error.message, { source: 'init' });
       }
     })();
   </script>
