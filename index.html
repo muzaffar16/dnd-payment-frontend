@@ -43,6 +43,8 @@
         resultEl.style.display = 'none';
         resultEl.textContent = '';
 
+        window.alert(isSuccess ? 'Payment Successful' : 'Payment Failed');
+
         if (isSuccess) {
           console.log('[Payment Success] ' + message, details || {});
         } else {
