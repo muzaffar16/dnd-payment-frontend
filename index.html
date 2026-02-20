@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trust Payments Google Pay Test</title>
+  <link rel="icon" href="data:," />
+</head>
+
+<body>
+
+  <h1>Google Pay Test</h1>
+  <div id="st-notification-frame"></div>
+  <form id="st-form"></form>
+  <div id="st-google-pay" style="width: 100%; max-width: 400px; height: 60px; margin: 20px 0; border: 1px dashed #ccc;"></div>
+  <p id="status">Initializing...</p>
+  <pre id="payment-result" style="display:none;white-space:pre-wrap;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:10px;max-width:900px;"></pre>
+
+  <script src="./config.js"></script>
+  <script src="https://cdn.eu.trustpayments.com/js/latest/st.js"></script>
+  <script>
+    (async function () {
+      const statusEl = document.getElementById('status');
+      const notificationFrame = document.getElementById('st-notification-frame');
+      const resultEl = document.getElementById('payment-result');
+      const API_BASE_URL = (window.PAYMENT_API_BASE_URL || '').replace(/\/$/, '');
+      const api = (path) => `${API_BASE_URL}${path}`;
+
+      function decodeJwtPayload(token) {
+        try {
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+          return JSON.parse(atob(padded));
+        } catch {
+          return null;
+        }
+      }
+
+      function renderResult(title, data) {
+        resultEl.style.display = 'block';
+        resultEl.textContent = title + '\n\n' + JSON.stringify(data, null, 2);
+      }
+
+      async function handleGatewayResponse() {
+        const query = new URLSearchParams(window.location.search);
+        const responseJwt = query.get('jwt');
+        const errorcode = query.get('errorcode');
+        const transactionreference = query.get('transactionreference');
+        const errormessage = query.get('errormessage');
+
+        const hasResponseParams = responseJwt || errorcode || transactionreference;
+        if (!hasResponseParams) {
+          return;
+        }
+
+        const basicResult = {
+          errorcode,
+          transactionreference,
+          errormessage,
+          enrolled: query.get('enrolled'),
+          settlestatus: query.get('settlestatus')
+        };
+
+        if (responseJwt) {
+          try {
+            const verifyRes = await fetch(api('/api/v1/payments/response/verify'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jwt: responseJwt })
+            });
+            const verifiedPayload = await verifyRes.json();
+
+            if (!verifyRes.ok || !verifiedPayload.verified) {
+              throw new Error(verifiedPayload.error || 'JWT verification failed');
+            }
+
+            const gatewayResponse = verifiedPayload.gatewayResponse || {};
+            const approved = gatewayResponse.errorcode === '0' || errorcode === '0';
+            statusEl.textContent = approved
+              ? 'Payment approved. Transaction: ' + (gatewayResponse.transactionreference || transactionreference)
+              : 'Payment declined. Code: ' + (gatewayResponse.errorcode || errorcode || 'unknown');
+
+            renderResult('Verified callback response', {
+              summary: basicResult,
+              gatewayResponse,
+              decodedPayload: verifiedPayload.decoded && verifiedPayload.decoded.payload
+            });
+          } catch (error) {
+            const decodedClientSide = decodeJwtPayload(responseJwt);
+            statusEl.textContent = 'Received callback JWT, but verification failed: ' + error.message;
+            renderResult('Unverified callback response (fallback decode)', {
+              summary: basicResult,
+              decodedPayload: decodedClientSide && decodedClientSide.payload,
+              verificationError: error.message
+            });
+          }
+        } else {
+          const approved = errorcode === '0';
+          statusEl.textContent = approved
+            ? 'Payment approved. Transaction: ' + transactionreference
+            : 'Payment declined. Code: ' + (errorcode || 'unknown');
+          renderResult('Callback query response', basicResult);
+        }
+
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
+      window.addEventListener('error', (event) => {
+        const message = event.message || (event.error && event.error.message) || 'Unknown error';
+        statusEl.textContent = 'Error: ' + message;
+      });
+
+      window.addEventListener('unhandledrejection', (event) => {
+        const message = (event.reason && event.reason.message) || event.reason || 'Unknown rejection';
+        statusEl.textContent = 'Error: ' + message;
+      });
+
+      if (notificationFrame) {
+        const observer = new MutationObserver(() => {
+          const text = notificationFrame.textContent && notificationFrame.textContent.trim();
+          if (text) {
+            statusEl.textContent = 'ST notification: ' + text;
+          }
+        });
+        observer.observe(notificationFrame, { childList: true, subtree: true, characterData: true });
+      }
+
+      if (!API_BASE_URL) {
+        statusEl.textContent = 'Set window.PAYMENT_API_BASE_URL in config.js';
+        return;
+      }
+
+      await handleGatewayResponse();
+
+      try {
+        const res = await fetch(api('/api/v1/payments/jwt/init'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: '10.00', currency: 'USD' })
+        });
+
+        if (!res.ok) {
+          throw new Error('Init JWT request failed with status ' + res.status);
+        }
+
+        const { jwt } = await res.json();
+        const st = SecureTrading({ jwt, errorReporting: true });
+
+        const gpayInit = st.GooglePay({
+          buttonOptions: {
+            buttonRootNode: 'st-google-pay'
+          },
+          paymentRequest: {
+            environment: 'TEST',
+            merchantInfo: {
+              merchantId: 'BCR2DN5TZC6I563Y',
+              merchantName: 'RRoM International'
+            },
+            allowedPaymentMethods: [{
+              parameters: {
+                allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
+                allowedCardNetworks: ['VISA', 'MASTERCARD', 'AMEX']
+              }
+            }],
+            transactionInfo: {
+              countryCode: 'US',
+              currencyCode: 'USD',
+              totalPriceStatus: 'FINAL',
+              totalPrice: '10.00'
+            }
+          }
+        });
+
+        if (gpayInit && typeof gpayInit.then === 'function') {
+          gpayInit.catch((err) => {
+            statusEl.textContent = 'Error: ' + (err && err.message ? err.message : String(err));
+          });
+        }
+
+        statusEl.textContent = 'Google Pay initialized. Button should appear above.';
+      } catch (error) {
+        statusEl.textContent = 'Error: ' + error.message;
+      }
+    })();
+  </script>
+
+</body>
+
+</html>
