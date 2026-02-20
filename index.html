@@ -43,12 +43,56 @@
         resultEl.style.display = 'none';
         resultEl.textContent = '';
 
-        window.alert(isSuccess ? 'Payment Successful' : 'Payment Failed');
+        window.alert(isSuccess ? 'Payment Successful' : 'Payment Failed: ' + message);
 
         if (isSuccess) {
           console.log('[Payment Success] ' + message, details || {});
         } else {
           console.error('[Payment Error] ' + message, details || {});
+        }
+      }
+
+      function formatErrorMessage(error) {
+        if (!error) {
+          return 'Unknown error';
+        }
+
+        if (typeof error === 'string') {
+          return error;
+        }
+
+        if (error.message) {
+          return error.message;
+        }
+
+        const errorCode = error.errorcode;
+        const errorMessage = error.errormessage;
+        const errorData = Array.isArray(error.errordata) ? error.errordata.filter(Boolean).join(', ') : '';
+
+        if (errorCode || errorMessage || errorData) {
+          let text = '';
+
+          if (errorMessage) {
+            text += errorMessage;
+          } else {
+            text += 'Payment request failed';
+          }
+
+          if (errorCode) {
+            text += ' (code: ' + errorCode + ')';
+          }
+
+          if (errorData) {
+            text += ' - field: ' + errorData;
+          }
+
+          return text;
+        }
+
+        try {
+          return JSON.stringify(error);
+        } catch {
+          return 'Unknown error';
         }
       }
 
@@ -132,13 +176,13 @@
       }
 
       window.addEventListener('error', (event) => {
-        const message = event.message || (event.error && event.error.message) || 'Unknown error';
-        showOutcome(false, 'Error: ' + message, { source: 'window.error' });
+        const message = formatErrorMessage(event.error || event.message);
+        showOutcome(false, 'Error: ' + message, { source: 'window.error', raw: event.error || event.message });
       });
 
       window.addEventListener('unhandledrejection', (event) => {
-        const message = (event.reason && event.reason.message) || event.reason || 'Unknown rejection';
-        showOutcome(false, 'Error: ' + message, { source: 'window.unhandledrejection' });
+        const message = formatErrorMessage(event.reason);
+        showOutcome(false, 'Error: ' + message, { source: 'window.unhandledrejection', raw: event.reason });
       });
 
       if (notificationFrame) {
@@ -199,13 +243,13 @@
 
         if (gpayInit && typeof gpayInit.then === 'function') {
           gpayInit.catch((err) => {
-            showOutcome(false, 'Error: ' + (err && err.message ? err.message : String(err)), { source: 'GooglePay.init' });
+            showOutcome(false, 'Error: ' + formatErrorMessage(err), { source: 'GooglePay.init', raw: err });
           });
         }
 
         statusEl.textContent = 'Google Pay initialized. Button should appear above.';
       } catch (error) {
-        showOutcome(false, 'Error: ' + error.message, { source: 'init' });
+        showOutcome(false, 'Error: ' + formatErrorMessage(error), { source: 'init', raw: error });
       }
     })();
   </script>
