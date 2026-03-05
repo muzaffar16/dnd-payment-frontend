@@ -2,13 +2,13 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trust Payments Wallet Test</title>
   <link rel="icon" href="data:," />
   <style>
     body { font-family: system-ui, sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
-    #st-google-pay { width: 100%; max-width: 400px; height: 60px; margin: 20px 0; border: 1px dashed #ccc; }
+    #st-google-pay, #st-apple-pay { width: 100%; max-width: 400px; min-height: 60px; margin: 20px 0; border: 1px dashed #ccc; }
     #payment-result { display: none; white-space: pre-wrap; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; max-width: 900px; }
     .error { color: #dc2626; }
     .success { color: #16a34a; }
@@ -19,28 +19,34 @@
   <h1>Google Pay + Apple Pay Test</h1>
   <div id="st-notification-frame"></div>
   <form id="st-form"></form>
+
   <div id="st-google-pay"></div>
-  <div id="st-apple-pay" style="width: 100%; max-width: 400px; min-height: 50px; margin: 20px 0; border: 1px dashed #ccc;"></div>
+  <div id="st-apple-pay"></div>
+
   <p id="status">Initializing wallets...</p>
   <pre id="payment-result"></pre>
 
   <script src="./config.js"></script>
   <script src="https://cdn.eu.trustpayments.com/js/latest/st.js"></script>
   <script>
-    (async function() {
-      // Configuration
+    (async function () {
       const TEST_AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMjM0NTg4OTctYjNiNy00NjU1LWFkZjktMzZjNjYwN2Y1ODExIiwiZW1haWwiOiJtYWxpazIwbXVzaHRhcWFsaSs1QGdtYWlsLmNvbSIsImlhdCI6MTc3MjMwOTc5MSwiZXhwIjoxNzcyMzk2MTkxfQ.YSh7w9QnZjsUcrVmoeeUXdHMhrOc09WSCaWMSqZx_YQ";
-      
+      const GOOGLE_MERCHANT_ID = 'BCR2DN5TZC6I563Y';
+      const AMOUNT = '10.00';
+      const CURRENCY = 'USD';
+
       const statusEl = document.getElementById('status');
-      const notificationFrame = document.getElementById('st-notification-frame');
       const resultEl = document.getElementById('payment-result');
-      
+      const notificationFrame = document.getElementById('st-notification-frame');
+      const applePayContainer = document.getElementById('st-apple-pay');
+
       const API_BASE_URL = (window.PAYMENT_API_BASE_URL || '').replace(/\/$/, '');
       const api = (path) => `${API_BASE_URL}${path}`;
 
-      const GOOGLE_MERCHANT_ID = 'BCR2DN5TZC6I563Y';
-
-      let paymentSessionId = localStorage.getItem('paymentSessionId');
+      const SESSION_KEYS = {
+        google: 'paymentSessionId:google',
+        apple: 'paymentSessionId:apple'
+      };
 
       function decodeJwtPayload(token) {
         try {
@@ -56,16 +62,10 @@
       function showOutcome(success, message, details = {}) {
         statusEl.textContent = message;
         statusEl.className = success ? 'success' : 'error';
-        
         if (Object.keys(details).length > 0) {
           resultEl.style.display = 'block';
           resultEl.textContent = JSON.stringify(details, null, 2);
         }
-
-        console.log(success ? 'âœ… SUCCESS' : 'âŒ FAILED', { message, details });
-        
-        // Show alert for immediate feedback (like old code)
-        alert(success ? 'Payment Successful' : 'Payment Failed: ' + message);
       }
 
       function formatErrorMessage(error) {
@@ -78,14 +78,44 @@
           if (error.errordata?.length) text += ` - field: ${error.errordata.filter(Boolean).join(', ')}`;
           return text;
         }
-        try {
-          return JSON.stringify(error);
-        } catch {
-          return 'Unknown error';
-        }
+        try { return JSON.stringify(error); } catch { return 'Unknown error'; }
       }
 
-      // Handle gateway response from redirect
+      async function requestInitJwt(paymentMethod) {
+        const body = {
+          amount: AMOUNT,
+          currency: CURRENCY,
+          authToken: TEST_AUTH_TOKEN
+        };
+        if (paymentMethod) body.paymentMethod = paymentMethod;
+
+        const initRes = await fetch(api('/api/v1/payments/jwt/init'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (!initRes.ok) {
+          throw new Error(`Init failed (${paymentMethod || 'GOOGLEPAY'}) with status ${initRes.status}`);
+        }
+
+        return initRes.json();
+      }
+
+      async function verifyWithSession(responseJwt, sessionId) {
+        const verifyRes = await fetch(api('/api/v1/payments/response/verify'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jwt: responseJwt, paymentSessionId: sessionId })
+        });
+
+        const payload = await verifyRes.json();
+        if (!verifyRes.ok || !payload.verified) {
+          throw new Error(payload.error || 'Verification failed');
+        }
+        return payload;
+      }
+
       async function handleGatewayResponse() {
         const query = new URLSearchParams(window.location.search);
         const responseJwt = query.get('jwt');
@@ -102,125 +132,83 @@
           settlestatus: query.get('settlestatus')
         };
 
-        if (responseJwt && paymentSessionId) {
-          try {
-            console.log('ðŸ” Verifying payment with backend...');
-            
-            const verifyRes = await fetch(api('/api/v1/payments/response/verify'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                jwt: responseJwt,
-                paymentSessionId 
-              })
-            });
+        if (responseJwt) {
+          const sessionCandidates = [
+            localStorage.getItem(SESSION_KEYS.google),
+            localStorage.getItem(SESSION_KEYS.apple)
+          ].filter(Boolean);
 
-            const verifiedPayload = await verifyRes.json();
+          let verified = null;
+          let verifyError = null;
 
-            if (!verifyRes.ok || !verifiedPayload.verified) {
-              throw new Error(verifiedPayload.error || 'Verification failed');
+          for (const sid of sessionCandidates) {
+            try {
+              verified = await verifyWithSession(responseJwt, sid);
+              break;
+            } catch (err) {
+              verifyError = err;
             }
+          }
 
-            const gatewayResponse = verifiedPayload.gatewayResponse || {};
+          if (verified) {
+            const gatewayResponse = verified.gatewayResponse || {};
             const approved = gatewayResponse.errorcode === '0' || errorcode === '0';
-            
-            showOutcome(approved, 
-              approved ? 'Payment successful' : 'Payment failed', 
+            showOutcome(
+              approved,
+              approved ? 'Payment successful' : 'Payment failed',
               { summary: basicResult, gatewayResponse }
             );
-
             if (approved) {
-              localStorage.removeItem('paymentSessionId');
+              localStorage.removeItem(SESSION_KEYS.google);
+              localStorage.removeItem(SESSION_KEYS.apple);
             }
-
-          } catch (error) {
-            // Try to decode JWT client-side as fallback (like old code)
-            const decodedClientSide = decodeJwtPayload(responseJwt);
-            showOutcome(false, 'Verification failed: ' + error.message, { 
+          } else {
+            showOutcome(false, 'Verification failed: ' + (verifyError ? verifyError.message : 'Unknown'), {
               summary: basicResult,
-              decodedPayload: decodedClientSide,
-              error: error.message 
+              decodedPayload: decodeJwtPayload(responseJwt)
             });
           }
         } else {
           const approved = errorcode === '0';
-          showOutcome(approved, 
-            approved ? 'Payment successful' : 'Payment failed. Code: ' + errorcode,
-            basicResult
-          );
+          showOutcome(approved, approved ? 'Payment successful' : 'Payment failed. Code: ' + errorcode, basicResult);
         }
 
         window.history.replaceState({}, document.title, window.location.pathname);
       }
 
-      // Error handlers
-      window.addEventListener('error', (event) => {
-        showOutcome(false, 'Error: ' + formatErrorMessage(event.error || event.message), 
-          { source: 'window.error' });
-      });
-
-      window.addEventListener('unhandledrejection', (event) => {
-        showOutcome(false, 'Error: ' + formatErrorMessage(event.reason), 
-          { source: 'unhandledrejection' });
-      });
-
-      // Monitor ST notifications
       if (notificationFrame) {
         new MutationObserver(() => {
           const text = notificationFrame.textContent?.trim();
-          if (text) {
-            console.log('ðŸ“¢ ST Notification:', text);
-            statusEl.textContent = 'ST Notification: ' + text;
-          }
-        }).observe(notificationFrame, { 
-          childList: true, 
-          subtree: true, 
-          characterData: true 
-        });
+          if (text) statusEl.textContent = 'ST Notification: ' + text;
+        }).observe(notificationFrame, { childList: true, subtree: true, characterData: true });
       }
 
+      window.addEventListener('error', (event) => {
+        showOutcome(false, 'Error: ' + formatErrorMessage(event.error || event.message), { source: 'window.error' });
+      });
+
+      window.addEventListener('unhandledrejection', (event) => {
+        showOutcome(false, 'Error: ' + formatErrorMessage(event.reason), { source: 'unhandledrejection' });
+      });
+
       if (!API_BASE_URL) {
-        statusEl.textContent = 'âŒ Set window.PAYMENT_API_BASE_URL in config.js';
+        statusEl.textContent = 'Set window.PAYMENT_API_BASE_URL in config.js';
+        statusEl.className = 'error';
         return;
       }
 
       await handleGatewayResponse();
 
+      let gpayReady = false;
+      let appleReady = false;
+
+      // Google Pay (unchanged flow)
       try {
-        statusEl.textContent = 'â³ Requesting JWT...';
-        
-        const initRes = await fetch(api('/api/v1/payments/jwt/init'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            amount: '10.00', 
-            currency: 'USD',
-            authToken: TEST_AUTH_TOKEN,
-            paymentMethod: 'APPLEPAY'
-            // Don't send requesttypedescriptions here - it should be in the JWT payload
-          })
-        });
+        const googleInit = await requestInitJwt();
+        localStorage.setItem(SESSION_KEYS.google, googleInit.paymentSessionId);
 
-        if (!initRes.ok) {
-          throw new Error(`Init failed with status ${initRes.status}`);
-        }
-
-        const { jwt, paymentSessionId: newSessionId } = await initRes.json();
-        
-        paymentSessionId = newSessionId;
-        localStorage.setItem('paymentSessionId', paymentSessionId);
-        
-        console.log('ðŸ†” Payment Session ID:', paymentSessionId);
-        console.log('ðŸ”‘ JWT received');
-
-        statusEl.textContent = 'â³ Initializing Secure Trading...';
-        
-        const st = SecureTrading({ jwt, errorReporting: true });
-
-        statusEl.textContent = 'â³ Rendering Google Pay button...';
-
-        // FIXED: Match the old working configuration - NO tokenizationSpecification
-        const gpayInit = st.GooglePay({
+        const stGoogle = SecureTrading({ jwt: googleInit.jwt, errorReporting: true });
+        const gpayInit = stGoogle.GooglePay({
           buttonOptions: {
             buttonRootNode: 'st-google-pay',
             buttonType: 'pay',
@@ -231,91 +219,75 @@
             environment: 'TEST',
             merchantInfo: {
               merchantId: GOOGLE_MERCHANT_ID,
-              merchantName: 'RRoM International'  // Keep original merchant name
+              merchantName: 'RRoM International'
             },
             allowedPaymentMethods: [{
-              // Don't include 'type' field - match old working code
               parameters: {
                 allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
                 allowedCardNetworks: ['VISA', 'MASTERCARD', 'AMEX']
               }
-              // NO tokenizationSpecification - this is handled by ST.js internally
             }],
             transactionInfo: {
               countryCode: 'US',
-              currencyCode: 'USD',
+              currencyCode: CURRENCY,
               totalPriceStatus: 'FINAL',
-              totalPrice: '10.00'
+              totalPrice: AMOUNT
             }
           }
         });
 
-        // Handle promise if returned (like old code)
-        if (gpayInit && typeof gpayInit.then === 'function') {
-          gpayInit.catch((err) => {
-            showOutcome(false, 'Google Pay init error: ' + formatErrorMessage(err), { source: 'GooglePay.init' });
-          });
-        }
+        if (gpayInit && typeof gpayInit.then === 'function') await gpayInit;
+        gpayReady = true;
+      } catch (err) {
+        showOutcome(false, 'Google Pay init error: ' + formatErrorMessage(err), { source: 'GooglePay.init' });
+      }
 
-                // Apple Pay setup (same pattern as Google Pay)
-        const applePaySupported = typeof window.ApplePaySession !== 'undefined';
+      // Apple Pay (separate flow + separate JWT)
+      try {
         const appleMerchantId = window.APPLE_PAY_MERCHANT_ID || '';
-        const applePayContainer = document.getElementById('st-apple-pay');
+        const applePaySupported = typeof window.ApplePaySession !== 'undefined';
 
-        if (applePaySupported && appleMerchantId) {
-          const appleInit = st.ApplePay({
+        if (!applePaySupported) {
+          applePayContainer.innerHTML = '<p style="margin:8px;color:#64748b;">Apple Pay not supported on this browser/device.</p>';
+        } else if (!appleMerchantId) {
+          applePayContainer.innerHTML = '<p style="margin:8px;color:#b45309;">Set window.APPLE_PAY_MERCHANT_ID in config.js to enable Apple Pay.</p>';
+        } else {
+          const appleInit = await requestInitJwt('APPLEPAY');
+          localStorage.setItem(SESSION_KEYS.apple, appleInit.paymentSessionId);
+
+          const stApple = SecureTrading({ jwt: appleInit.jwt, errorReporting: true });
+          const apayInit = stApple.ApplePay({
             buttonStyle: 'black',
             buttonText: 'plain',
             merchantId: appleMerchantId,
             paymentRequest: {
               countryCode: 'US',
-              currencyCode: 'USD',
+              currencyCode: CURRENCY,
               merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
               supportedNetworks: ['visa', 'masterCard', 'amex'],
               requiredBillingContactFields: ['postalAddress'],
               requiredShippingContactFields: ['postalAddress', 'name', 'phone', 'email'],
               total: {
                 label: 'RRoM International',
-                amount: '10.00'
+                amount: AMOUNT
               }
             },
             buttonPlacement: 'st-apple-pay'
-            // Optional alternate process flow:
-            // merchantUrl: api('/api/v1/payments/applepay/process')
           });
 
-          if (appleInit && typeof appleInit.then === 'function') {
-            appleInit.catch((err) => {
-              showOutcome(false, 'Apple Pay init error: ' + formatErrorMessage(err), { source: 'ApplePay.init' });
-            });
-          }
-        } else if (!applePaySupported) {
-          applePayContainer.innerHTML = '<p style="margin:8px;color:#64748b;">Apple Pay not supported on this browser/device.</p>';
-        } else {
-          applePayContainer.innerHTML = '<p style="margin:8px;color:#b45309;">Set window.APPLE_PAY_MERCHANT_ID in config.js to enable Apple Pay.</p>';
+          if (apayInit && typeof apayInit.then === 'function') await apayInit;
+          appleReady = true;
         }
+      } catch (err) {
+        showOutcome(false, 'Apple Pay init error: ' + formatErrorMessage(err), { source: 'ApplePay.init' });
+      }
 
-        statusEl.textContent = ' Wallets initialized successfully';
+      if (gpayReady || appleReady) {
+        statusEl.textContent = 'Wallets initialized';
         statusEl.className = 'success';
-
-      } catch (error) {
-        const errorMessage = formatErrorMessage(error);
-        showOutcome(false, 'Initialization failed: ' + errorMessage, { 
-          source: 'init',
-          error: errorMessage,
-          stack: error.stack 
-        });
       }
     })();
   </script>
 </body>
+
 </html>
-
-
-
-
-
-
-
-
-
