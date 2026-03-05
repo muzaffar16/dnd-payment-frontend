@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trust Payments Google Pay Test</title>
+  <title>Trust Payments Wallet Test</title>
   <link rel="icon" href="data:," />
   <style>
     body { font-family: system-ui, sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
@@ -16,11 +16,12 @@
 </head>
 
 <body>
-  <h1>Google Pay Test</h1>
+  <h1>Google Pay + Apple Pay Test</h1>
   <div id="st-notification-frame"></div>
   <form id="st-form"></form>
   <div id="st-google-pay"></div>
-  <p id="status">Initializing...</p>
+  <div id="st-apple-pay" style="width: 100%; max-width: 400px; min-height: 50px; margin: 20px 0; border: 1px dashed #ccc;"></div>
+  <p id="status">Initializing wallets...</p>
   <pre id="payment-result"></pre>
 
   <script src="./config.js"></script>
@@ -36,6 +37,8 @@
       
       const API_BASE_URL = (window.PAYMENT_API_BASE_URL || '').replace(/\/$/, '');
       const api = (path) => `${API_BASE_URL}${path}`;
+
+      const GOOGLE_MERCHANT_ID = 'BCR2DN5TZC6I563Y';
 
       let paymentSessionId = localStorage.getItem('paymentSessionId');
 
@@ -59,7 +62,7 @@
           resultEl.textContent = JSON.stringify(details, null, 2);
         }
 
-        console.log(success ? '✅ SUCCESS' : '❌ FAILED', { message, details });
+        console.log(success ? 'âœ… SUCCESS' : 'âŒ FAILED', { message, details });
         
         // Show alert for immediate feedback (like old code)
         alert(success ? 'Payment Successful' : 'Payment Failed: ' + message);
@@ -101,7 +104,7 @@
 
         if (responseJwt && paymentSessionId) {
           try {
-            console.log('🔐 Verifying payment with backend...');
+            console.log('ðŸ” Verifying payment with backend...');
             
             const verifyRes = await fetch(api('/api/v1/payments/response/verify'), {
               method: 'POST',
@@ -166,7 +169,7 @@
         new MutationObserver(() => {
           const text = notificationFrame.textContent?.trim();
           if (text) {
-            console.log('📢 ST Notification:', text);
+            console.log('ðŸ“¢ ST Notification:', text);
             statusEl.textContent = 'ST Notification: ' + text;
           }
         }).observe(notificationFrame, { 
@@ -177,14 +180,14 @@
       }
 
       if (!API_BASE_URL) {
-        statusEl.textContent = '❌ Set window.PAYMENT_API_BASE_URL in config.js';
+        statusEl.textContent = 'âŒ Set window.PAYMENT_API_BASE_URL in config.js';
         return;
       }
 
       await handleGatewayResponse();
 
       try {
-        statusEl.textContent = '⏳ Requesting JWT...';
+        statusEl.textContent = 'â³ Requesting JWT...';
         
         const initRes = await fetch(api('/api/v1/payments/jwt/init'), {
           method: 'POST',
@@ -206,14 +209,14 @@
         paymentSessionId = newSessionId;
         localStorage.setItem('paymentSessionId', paymentSessionId);
         
-        console.log('🆔 Payment Session ID:', paymentSessionId);
-        console.log('🔑 JWT received');
+        console.log('ðŸ†” Payment Session ID:', paymentSessionId);
+        console.log('ðŸ”‘ JWT received');
 
-        statusEl.textContent = '⏳ Initializing Secure Trading...';
+        statusEl.textContent = 'â³ Initializing Secure Trading...';
         
         const st = SecureTrading({ jwt, errorReporting: true });
 
-        statusEl.textContent = '⏳ Rendering Google Pay button...';
+        statusEl.textContent = 'â³ Rendering Google Pay button...';
 
         // FIXED: Match the old working configuration - NO tokenizationSpecification
         const gpayInit = st.GooglePay({
@@ -226,7 +229,7 @@
           paymentRequest: {
             environment: 'TEST',
             merchantInfo: {
-              merchantId: 'BCR2DN5TZC6I563Y',
+              merchantId: GOOGLE_MERCHANT_ID,
               merchantName: 'RRoM International'  // Keep original merchant name
             },
             allowedPaymentMethods: [{
@@ -253,7 +256,45 @@
           });
         }
 
-        statusEl.textContent = ' Google Pay initialized successfully';
+                // Apple Pay setup (same pattern as Google Pay)
+        const applePaySupported = typeof window.ApplePaySession !== 'undefined';
+        const appleMerchantId = window.APPLE_PAY_MERCHANT_ID || GOOGLE_MERCHANT_ID;
+        const applePayContainer = document.getElementById('st-apple-pay');
+
+        if (applePaySupported && appleMerchantId) {
+          const appleInit = st.ApplePay({
+            buttonStyle: 'black',
+            buttonText: 'pay',
+            merchantId: appleMerchantId,
+            paymentRequest: {
+              countryCode: 'US',
+              currencyCode: 'USD',
+              merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
+              supportedNetworks: ['visa', 'masterCard', 'amex'],
+              requiredBillingContactFields: ['postalAddress'],
+              requiredShippingContactFields: ['postalAddress', 'name', 'phone', 'email'],
+              total: {
+                label: 'RRoM International',
+                amount: '10.00'
+              }
+            },
+            buttonPlacement: 'st-apple-pay'
+            // Optional alternate process flow:
+            // merchantUrl: api('/api/v1/payments/applepay/process')
+          });
+
+          if (appleInit && typeof appleInit.then === 'function') {
+            appleInit.catch((err) => {
+              showOutcome(false, 'Apple Pay init error: ' + formatErrorMessage(err), { source: 'ApplePay.init' });
+            });
+          }
+        } else if (!applePaySupported) {
+          applePayContainer.innerHTML = '<p style="margin:8px;color:#64748b;">Apple Pay not supported on this browser/device.</p>';
+        } else {
+          applePayContainer.innerHTML = '<p style="margin:8px;color:#b45309;">Set window.APPLE_PAY_MERCHANT_ID in config.js to enable Apple Pay.</p>';
+        }
+
+        statusEl.textContent = ' Wallets initialized successfully';
         statusEl.className = 'success';
 
       } catch (error) {
@@ -268,3 +309,9 @@
   </script>
 </body>
 </html>
+
+
+
+
+
+
