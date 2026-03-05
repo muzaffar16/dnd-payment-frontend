@@ -195,7 +195,8 @@
           body: JSON.stringify({ 
             amount: '10.00', 
             currency: 'USD',
-            authToken: TEST_AUTH_TOKEN
+            authToken: TEST_AUTH_TOKEN,
+            paymentMethod: 'APPLEPAY'
             // Don't send requesttypedescriptions here - it should be in the JWT payload
           })
         });
@@ -309,6 +310,7 @@
   </script>
 </body>
 </html>
+
 
 
 
