@@ -258,7 +258,7 @@
 
                 // Apple Pay setup (same pattern as Google Pay)
         const applePaySupported = typeof window.ApplePaySession !== 'undefined';
-        const appleMerchantId = window.APPLE_PAY_MERCHANT_ID || GOOGLE_MERCHANT_ID;
+        const appleMerchantId = window.APPLE_PAY_MERCHANT_ID || '';
         const applePayContainer = document.getElementById('st-apple-pay');
 
         if (applePaySupported && appleMerchantId) {
@@ -309,6 +309,7 @@
   </script>
 </body>
 </html>
+
 
 
 
