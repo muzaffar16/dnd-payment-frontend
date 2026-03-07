@@ -1,80 +1,124 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trust Payments Google Pay Test</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trust Payments Checkout Test</title>
   <link rel="icon" href="data:," />
   <style>
-    body { font-family: system-ui, sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
-    #st-google-pay { width: 100%; max-width: 400px; height: 60px; margin: 20px 0; border: 1px dashed #ccc; }
-    #payment-result { display: none; white-space: pre-wrap; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; max-width: 900px; }
+    body { font-family: system-ui, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; }
+    .row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+    .field { display: flex; flex-direction: column; gap: 6px; min-width: 180px; }
+    .field.wide { min-width: 240px; }
+    .section { margin-top: 20px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
+    input, button { padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+    button { cursor: pointer; }
+    #pay-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+    #st-google-pay, #st-apple-pay { width: 100%; max-width: 420px; min-height: 56px; }
+    #st-card-number, #st-expiration-date, #st-security-code {
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 10px;
+      min-height: 24px;
+    }
+    #payment-result {
+      display: none;
+      white-space: pre-wrap;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 10px;
+      margin-top: 14px;
+    }
     .error { color: #dc2626; }
     .success { color: #16a34a; }
   </style>
 </head>
-
 <body>
-  <h1>Google Pay Test</h1>
+  <h1>Checkout Test (Google Pay / Apple Pay / Card)</h1>
+  <p>For local testing with Trust CDN, open this app using your machine IPv4 address (not localhost/127.0.0.1).</p>
+
+  <div class="row">
+    <div class="field">
+      <label for="amount">Amount</label>
+      <input id="amount" type="text" value="10.00" />
+    </div>
+    <div class="field">
+      <label for="currency">Currency</label>
+      <input id="currency" type="text" value="USD" />
+    </div>
+    <div class="field wide">
+      <label for="auth-token">Auth Token</label>
+      <input id="auth-token" type="text" />
+    </div>
+  </div>
+
+  <div class="row">
+    <button id="init-google-btn" type="button">Init Google Pay</button>
+    <button id="init-apple-btn" type="button">Init Apple Pay</button>
+    <button id="init-card-btn" type="button">Init Card</button>
+  </div>
+
+  <p id="status">Idle</p>
   <div id="st-notification-frame"></div>
-  <form id="st-form"></form>
-  <div id="st-google-pay"></div>
-  <p id="status">Initializing...</p>
+
+  <div class="section">
+    <h3>Wallets</h3>
+    <div id="st-google-pay"></div>
+    <div id="st-apple-pay"></div>
+  </div>
+
+  <form id="st-form" method="POST" class="section">
+    <h3>Card</h3>
+    <input type="hidden" name="paymentSessionId" id="payment-session-id" />
+    <input type="hidden" name="requestReference" id="request-reference" />
+    <div id="st-card-number"></div>
+    <div id="st-expiration-date"></div>
+    <div id="st-security-code"></div>
+    <button id="pay-btn" type="submit" disabled>Pay securely</button>
+  </form>
+
   <pre id="payment-result"></pre>
 
   <script src="./config.js"></script>
   <script src="https://cdn.eu.trustpayments.com/js/latest/st.js"></script>
   <script>
-    (async function() {
-      // Configuration
-      const TEST_AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMjM0NTg4OTctYjNiNy00NjU1LWFkZjktMzZjNjYwN2Y1ODExIiwiZW1haWwiOiJtYWxpazIwbXVzaHRhcWFsaSs1QGdtYWlsLmNvbSIsImlhdCI6MTc3MjMwOTc5MSwiZXhwIjoxNzcyMzk2MTkxfQ.YSh7w9QnZjsUcrVmoeeUXdHMhrOc09WSCaWMSqZx_YQ";
-      
-      const statusEl = document.getElementById('status');
-      const notificationFrame = document.getElementById('st-notification-frame');
-      const resultEl = document.getElementById('payment-result');
-      
+    (function () {
+      const DEFAULT_AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNTg3MzdiZDgtZmIxNC00ODVlLWFlNWUtMjVlYzBhMWY1OWFjIiwiZW1haWwiOiJtdXNodGFxYWxpbWFsaWsxMUBnbWFpbC5jb20iLCJpYXQiOjE3NzI5MTk2MTksImV4cCI6MTc3MzAwNjAxOX0.ZLpjnHC7iG-U7_O2Pt2GR9vIJ6B78hYF8gwkUoJ-tAE";
       const API_BASE_URL = (window.PAYMENT_API_BASE_URL || '').replace(/\/$/, '');
       const api = (path) => `${API_BASE_URL}${path}`;
 
-      let paymentSessionId = localStorage.getItem('paymentSessionId');
+      const amountInput = document.getElementById('amount');
+      const currencyInput = document.getElementById('currency');
+      const authTokenInput = document.getElementById('auth-token');
+      const initGoogleBtn = document.getElementById('init-google-btn');
+      const initAppleBtn = document.getElementById('init-apple-btn');
+      const initCardBtn = document.getElementById('init-card-btn');
+      const payBtn = document.getElementById('pay-btn');
+      const statusEl = document.getElementById('status');
+      const resultEl = document.getElementById('payment-result');
+      const formEl = document.getElementById('st-form');
+      const sessionIdInput = document.getElementById('payment-session-id');
+      const requestRefInput = document.getElementById('request-reference');
 
-      function decodeJwtPayload(token) {
-        try {
-          const base64Url = token.split('.')[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
-          return JSON.parse(atob(padded));
-        } catch {
-          return null;
-        }
+      let paymentSessionId = localStorage.getItem('paymentSessionId') || '';
+      authTokenInput.value = window.PAYMENT_AUTH_TOKEN || DEFAULT_AUTH_TOKEN;
+
+      function setStatus(text, type) {
+        statusEl.textContent = text;
+        statusEl.className = type || '';
       }
 
-      function showOutcome(success, message, details = {}) {
-        statusEl.textContent = message;
-        statusEl.className = success ? 'success' : 'error';
-        
-        if (Object.keys(details).length > 0) {
-          resultEl.style.display = 'block';
-          resultEl.textContent = JSON.stringify(details, null, 2);
-        }
-
-        console.log(success ? '✅ SUCCESS' : '❌ FAILED', { message, details });
-        
-        // Show alert for immediate feedback (like old code)
-        alert(success ? 'Payment Successful' : 'Payment Failed: ' + message);
+      function showResult(data) {
+        resultEl.style.display = 'block';
+        resultEl.textContent = JSON.stringify(data, null, 2);
       }
 
-      function formatErrorMessage(error) {
+      function normalizeError(error) {
         if (!error) return 'Unknown error';
         if (typeof error === 'string') return error;
         if (error.message) return error.message;
-        if (error.errorcode || error.errormessage) {
-          let text = error.errormessage || 'Payment request failed';
-          if (error.errorcode) text += ` (code: ${error.errorcode})`;
-          if (error.errordata?.length) text += ` - field: ${error.errordata.filter(Boolean).join(', ')}`;
-          return text;
-        }
         try {
           return JSON.stringify(error);
         } catch {
@@ -82,188 +126,228 @@
         }
       }
 
-      // Handle gateway response from redirect
-      async function handleGatewayResponse() {
+      async function handleGatewayResponseFromQuery() {
         const query = new URLSearchParams(window.location.search);
         const responseJwt = query.get('jwt');
         const errorcode = query.get('errorcode');
         const transactionreference = query.get('transactionreference');
 
-        if (!responseJwt && !errorcode && !transactionreference) return;
-
-        const basicResult = {
-          errorcode,
-          transactionreference,
-          errormessage: query.get('errormessage'),
-          enrolled: query.get('enrolled'),
-          settlestatus: query.get('settlestatus')
-        };
-
-        if (responseJwt && paymentSessionId) {
-          try {
-            console.log('🔐 Verifying payment with backend...');
-            
-            const verifyRes = await fetch(api('/api/v1/payments/response/verify'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                jwt: responseJwt,
-                paymentSessionId 
-              })
-            });
-
-            const verifiedPayload = await verifyRes.json();
-
-            if (!verifyRes.ok || !verifiedPayload.verified) {
-              throw new Error(verifiedPayload.error || 'Verification failed');
-            }
-
-            const gatewayResponse = verifiedPayload.gatewayResponse || {};
-            const approved = gatewayResponse.errorcode === '0' || errorcode === '0';
-            
-            showOutcome(approved, 
-              approved ? 'Payment successful' : 'Payment failed', 
-              { summary: basicResult, gatewayResponse }
-            );
-
-            if (approved) {
-              localStorage.removeItem('paymentSessionId');
-            }
-
-          } catch (error) {
-            // Try to decode JWT client-side as fallback (like old code)
-            const decodedClientSide = decodeJwtPayload(responseJwt);
-            showOutcome(false, 'Verification failed: ' + error.message, { 
-              summary: basicResult,
-              decodedPayload: decodedClientSide,
-              error: error.message 
-            });
-          }
-        } else {
-          const approved = errorcode === '0';
-          showOutcome(approved, 
-            approved ? 'Payment successful' : 'Payment failed. Code: ' + errorcode,
-            basicResult
-          );
+        if (!responseJwt && !errorcode && !transactionreference) {
+          return;
         }
 
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-
-      // Error handlers
-      window.addEventListener('error', (event) => {
-        showOutcome(false, 'Error: ' + formatErrorMessage(event.error || event.message), 
-          { source: 'window.error' });
-      });
-
-      window.addEventListener('unhandledrejection', (event) => {
-        showOutcome(false, 'Error: ' + formatErrorMessage(event.reason), 
-          { source: 'unhandledrejection' });
-      });
-
-      // Monitor ST notifications
-      if (notificationFrame) {
-        new MutationObserver(() => {
-          const text = notificationFrame.textContent?.trim();
-          if (text) {
-            console.log('📢 ST Notification:', text);
-            statusEl.textContent = 'ST Notification: ' + text;
+        try {
+          if (!responseJwt) {
+            throw new Error(errorcode || 'No JWT in callback');
           }
-        }).observe(notificationFrame, { 
-          childList: true, 
-          subtree: true, 
-          characterData: true 
-        });
+
+          setStatus('Verifying wallet callback with backend...', '');
+          const verifyPayload = await verifyWithBackend(responseJwt);
+          setStatus('Wallet payment successful', 'success');
+          showResult({ verified: verifyPayload, source: 'query-callback' });
+          localStorage.removeItem('paymentSessionId');
+        } catch (error) {
+          setStatus(`Wallet payment failed: ${normalizeError(error)}`, 'error');
+          showResult({ source: 'query-callback', error: normalizeError(error) });
+        } finally {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
       }
 
-      if (!API_BASE_URL) {
-        statusEl.textContent = '❌ Set window.PAYMENT_API_BASE_URL in config.js';
-        return;
-      }
+      async function createInitSession(paymentMethod) {
+        if (!API_BASE_URL) {
+          throw new Error('Set window.PAYMENT_API_BASE_URL in config.js');
+        }
 
-      await handleGatewayResponse();
+        const authToken = (authTokenInput.value || '').trim();
+        if (!authToken) {
+          throw new Error('Auth token is required');
+        }
 
-      try {
-        statusEl.textContent = '⏳ Requesting JWT...';
-        
+        const amount = (amountInput.value || '').trim();
+        const currency = (currencyInput.value || '').trim().toUpperCase();
+
         const initRes = await fetch(api('/api/v1/payments/jwt/init'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            amount: '10.00', 
-            currency: 'USD',
-            authToken: TEST_AUTH_TOKEN
-            // Don't send requesttypedescriptions here - it should be in the JWT payload
+          body: JSON.stringify({
+            amount,
+            currency,
+            authToken,
+            paymentMethod
           })
         });
 
-        if (!initRes.ok) {
-          throw new Error(`Init failed with status ${initRes.status}`);
+        const initPayload = await initRes.json();
+        if (!initRes.ok || !initPayload.jwt || !initPayload.paymentSessionId) {
+          throw new Error(initPayload.error || `Failed to initialize ${paymentMethod}`);
         }
 
-        const { jwt, paymentSessionId: newSessionId } = await initRes.json();
-        
-        paymentSessionId = newSessionId;
+        paymentSessionId = initPayload.paymentSessionId;
         localStorage.setItem('paymentSessionId', paymentSessionId);
-        
-        console.log('🆔 Payment Session ID:', paymentSessionId);
-        console.log('🔑 JWT received');
 
-        statusEl.textContent = '⏳ Initializing Secure Trading...';
-        
-        const st = SecureTrading({ jwt, errorReporting: true });
+        sessionIdInput.value = paymentSessionId;
+        requestRefInput.value = paymentSessionId;
+        formEl.action = api(initPayload.processPath || '/api/v1/payments/card/process');
 
-        statusEl.textContent = '⏳ Rendering Google Pay button...';
+        return initPayload;
+      }
 
-        // FIXED: Match the old working configuration - NO tokenizationSpecification
-        const gpayInit = st.GooglePay({
-          buttonOptions: {
-            buttonRootNode: 'st-google-pay',
-            buttonType: 'pay',
-            buttonColor: 'black',
-            buttonLocale: 'en'
-          },
-          paymentRequest: {
-            environment: 'TEST',
-            merchantInfo: {
-              merchantId: 'BCR2DN5TZC6I563Y',
-              merchantName: 'RRoM International'  // Keep original merchant name
+      async function initializeGooglePaySession() {
+        try {
+          setStatus('Requesting GOOGLEPAY JWT...', '');
+          const initPayload = await createInitSession('GOOGLEPAY');
+          const st = SecureTrading({ jwt: initPayload.jwt, errorReporting: true });
+
+          const gpayInit = st.GooglePay({
+            buttonOptions: {
+              buttonRootNode: 'st-google-pay',
+              buttonType: 'pay',
+              buttonColor: 'black',
+              buttonLocale: 'en'
             },
-            allowedPaymentMethods: [{
-              // Don't include 'type' field - match old working code
-              parameters: {
-                allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
-                allowedCardNetworks: ['VISA', 'MASTERCARD', 'AMEX']
+            paymentRequest: {
+              environment: 'TEST',
+              merchantInfo: {
+                merchantId: 'BCR2DN5TZC6I563Y',
+                merchantName: 'RRoM International'
+              },
+              allowedPaymentMethods: [{
+                parameters: {
+                  allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
+                  allowedCardNetworks: ['VISA', 'MASTERCARD', 'AMEX']
+                }
+              }],
+              transactionInfo: {
+                countryCode: 'US',
+                currencyCode: (currencyInput.value || 'USD').trim().toUpperCase(),
+                totalPriceStatus: 'FINAL',
+                totalPrice: (amountInput.value || '10.00').trim()
               }
-              // NO tokenizationSpecification - this is handled by ST.js internally
-            }],
-            transactionInfo: {
-              countryCode: 'US',
-              currencyCode: 'USD',
-              totalPriceStatus: 'FINAL',
-              totalPrice: '10.00'
             }
+          });
+
+          if (gpayInit && typeof gpayInit.then === 'function') {
+            gpayInit.catch((err) => {
+              setStatus(`Google Pay init failed: ${normalizeError(err)}`, 'error');
+            });
           }
+
+          setStatus('Google Pay initialized', 'success');
+          showResult({ init: initPayload, method: 'GOOGLEPAY' });
+        } catch (error) {
+          setStatus(`Google Pay init failed: ${normalizeError(error)}`, 'error');
+          showResult({ error: normalizeError(error), method: 'GOOGLEPAY' });
+        }
+      }
+
+      async function initializeApplePaySession() {
+        try {
+          setStatus('Requesting APPLEPAY JWT...', '');
+          const initPayload = await createInitSession('APPLEPAY');
+          const st = SecureTrading({ jwt: initPayload.jwt, errorReporting: true });
+
+          if (typeof st.ApplePay !== 'function') {
+            throw new Error('st.ApplePay is not available in this browser/environment');
+          }
+
+          const appleInit = st.ApplePay({
+            buttonOptions: {
+              buttonRootNode: 'st-apple-pay'
+            }
+          });
+
+          if (appleInit && typeof appleInit.then === 'function') {
+            appleInit.catch((err) => {
+              setStatus(`Apple Pay init failed: ${normalizeError(err)}`, 'error');
+            });
+          }
+
+          setStatus('Apple Pay initialized', 'success');
+          showResult({ init: initPayload, method: 'APPLEPAY' });
+        } catch (error) {
+          setStatus(`Apple Pay init failed: ${normalizeError(error)}`, 'error');
+          showResult({ error: normalizeError(error), method: 'APPLEPAY' });
+        }
+      }
+
+      async function verifyWithBackend(responseJwt) {
+        const verifyRes = await fetch(api('/api/v1/payments/response/verify'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jwt: responseJwt,
+            paymentSessionId,
+            requestReference: paymentSessionId
+          })
         });
 
-        // Handle promise if returned (like old code)
-        if (gpayInit && typeof gpayInit.then === 'function') {
-          gpayInit.catch((err) => {
-            showOutcome(false, 'Google Pay init error: ' + formatErrorMessage(err), { source: 'GooglePay.init' });
-          });
+        const payload = await verifyRes.json();
+        if (!verifyRes.ok || !payload.verified) {
+          throw new Error(payload.error || payload.message || 'Verification failed');
         }
 
-        statusEl.textContent = ' Google Pay initialized successfully';
-        statusEl.className = 'success';
-
-      } catch (error) {
-        const errorMessage = formatErrorMessage(error);
-        showOutcome(false, 'Initialization failed: ' + errorMessage, { 
-          source: 'init',
-          error: errorMessage,
-          stack: error.stack 
-        });
+        return payload;
       }
+
+      async function onSubmitCallback(data) {
+        const responseJwt = data && (data.jwt || data.responsejwt || data.responseJwt);
+        if (!responseJwt) {
+          setStatus('Payment did not return a JWT response', 'error');
+          showResult({ callback: data || null });
+          return;
+        }
+
+        try {
+          setStatus('Verifying payment with backend...', '');
+          const verifyPayload = await verifyWithBackend(responseJwt);
+          setStatus('Payment successful', 'success');
+          showResult({ verified: verifyPayload, callback: data });
+          localStorage.removeItem('paymentSessionId');
+        } catch (error) {
+          setStatus(`Payment failed: ${normalizeError(error)}`, 'error');
+          showResult({ callback: data || null, error: normalizeError(error) });
+        }
+      }
+
+      async function initializeCardSession() {
+        try {
+          setStatus('Requesting CARD JWT...', '');
+          const initPayload = await createInitSession('CARD');
+
+          const st = SecureTrading({
+            jwt: initPayload.jwt,
+            errorReporting: true,
+            submitOnSuccess: false,
+            submitOnError: false,
+            submitOnCancel: false,
+            submitCallback: onSubmitCallback,
+            components: {
+              callbacks: {
+                onPaymentFormRendered() {
+                  setStatus('Card form ready', 'success');
+                },
+                onPaymentFormValidityChange(data) {
+                  payBtn.disabled = !(data && data.isFormValid);
+                }
+              }
+            }
+          });
+
+          st.Components();
+          setStatus('Rendering card fields...', '');
+          showResult({ init: initPayload });
+        } catch (error) {
+          setStatus(`Initialization failed: ${normalizeError(error)}`, 'error');
+          showResult({ error: normalizeError(error) });
+        }
+      }
+
+      initGoogleBtn.addEventListener('click', initializeGooglePaySession);
+      initAppleBtn.addEventListener('click', initializeApplePaySession);
+      initCardBtn.addEventListener('click', initializeCardSession);
+
+      handleGatewayResponseFromQuery();
     })();
   </script>
 </body>
