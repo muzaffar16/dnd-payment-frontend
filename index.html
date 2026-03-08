@@ -99,6 +99,7 @@
   <div class="section">
     <h3>Apple Pay</h3>
     <div id="st-apple-pay"></div>
+    <div id="applepay-diagnostics" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:10px;margin:10px 0;max-width:900px;font-size:14px;color:#334155"></div>
   </div>
 
   <div id="card-modal" class="modal-backdrop" aria-hidden="true">
@@ -445,6 +446,26 @@
 
       async function initApplePay() {
         try {
+          // Apple Pay diagnostics panel
+          const applePayDiagnostics = document.getElementById('applepay-diagnostics');
+          function printApplePayDiagnostics() {
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const applePaySupported = typeof window.ApplePaySession !== 'undefined';
+            let eligibility = 'Unknown';
+            if (!applePaySupported) eligibility = 'ApplePaySession not available';
+            else eligibility = 'Eligible';
+            const diag = [
+              `User Agent: ${navigator.userAgent}`,
+              `Safari: ${isSafari}`,
+              `iOS: ${isIOS}`,
+              `ApplePaySession supported: ${applePaySupported}`,
+              `Eligibility: ${eligibility}`
+            ];
+            applePayDiagnostics.innerHTML = '<b>Apple Pay Diagnostics</b><br>' + diag.map(x => x).join('<br>');
+          }
+          printApplePayDiagnostics();
+
           const hasApplePaySession = typeof window.ApplePaySession !== 'undefined';
           const canMakePayments =
             hasApplePaySession &&
