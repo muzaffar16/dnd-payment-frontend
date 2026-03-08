@@ -468,24 +468,14 @@
           }
 
           const appleInit = st.ApplePay({
-            buttonOptions: {
-              buttonRootNode: 'st-apple-pay',
-              buttonStyle: 'black',
-              buttonType: 'buy',
-              buttonLocale: 'en'
-            },
+            buttonRootNode: 'st-apple-pay',
             paymentRequest: {
               countryCode: 'US',
               currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
               total: {
                 label: 'DropNDash',
                 amount: (amountEl.value || '10.00').trim()
-              },
-              supportedNetworks: ['visa', 'masterCard', 'amex', 'discover'],
-              merchantCapabilities: ['supports3DS']
-            },
-            merchantValidation: {
-              merchantIdentifier: window.APPLE_PAY_MERCHANT_ID || undefined
+              }
             }
           });
 
