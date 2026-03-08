@@ -463,6 +463,7 @@
               `Eligibility: ${eligibility}`
             ];
             applePayDiagnostics.innerHTML = '<b>Apple Pay Diagnostics</b><br>' + diag.map(x => x).join('<br>');
+            console.log('Apple Pay Diagnostics:', diag);
           }
           printApplePayDiagnostics();
 
@@ -471,36 +472,54 @@
             hasApplePaySession &&
             typeof window.ApplePaySession.canMakePayments === 'function' &&
             window.ApplePaySession.canMakePayments();
+          console.log('ApplePaySession:', hasApplePaySession, 'canMakePayments:', canMakePayments);
 
           if (!window.isSecureContext) {
+            console.error('Apple Pay requires HTTPS (secure context).');
             throw new Error('Apple Pay requires HTTPS (secure context).');
           }
 
           if (!hasApplePaySession || !canMakePayments) {
             setStatus('Apple Pay may not be payable in this browser/device; attempting initialization for button visibility.', 'error');
+            console.warn('Apple Pay not payable:', { hasApplePaySession, canMakePayments });
           }
 
           setStatus('Initializing Apple Pay...');
           const initPayload = await createInitSession('APPLEPAY');
+          console.log('Apple Pay JWT:', initPayload.jwt);
           const st = SecureTrading({ jwt: initPayload.jwt, errorReporting: true });
 
           if (typeof st.ApplePay !== 'function') {
+            console.error('st.js ApplePay() is not available in this version/config');
             throw new Error('st.js ApplePay() is not available in this version/config');
           }
 
           const appleInit = st.ApplePay();
+          if (!appleInit) {
+            console.error('st.ApplePay() did not return an object');
+          }
 
           if (appleInit && typeof appleInit.then === 'function') {
             appleInit.catch((err) => {
               showOutcome(false, 'Apple Pay init error: ' + formatErrorMessage(err), { source: 'ApplePay.init' });
+              console.error('Apple Pay init promise rejected:', err);
             });
           }
+
+          setTimeout(() => {
+            const container = document.getElementById('st-apple-pay');
+            console.log('Apple Pay container HTML:', container.innerHTML);
+            if (!container.innerHTML.trim()) {
+              setStatus('⚠️ Apple Pay button not rendered. Possible reasons:<br>• Merchant/domain not verified<br>• Trust Payments config issue<br>• Check console for errors', 'error');
+            }
+          }, 2000);
 
           showOutcome(true, 'Apple Pay initialized', { init: initPayload });
         } catch (error) {
           showOutcome(false, 'Apple Pay initialization failed: ' + formatErrorMessage(error), {
             source: 'apple-init'
           });
+          console.error('Apple Pay initialization failed:', error);
         }
       }
 
