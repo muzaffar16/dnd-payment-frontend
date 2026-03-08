@@ -28,6 +28,34 @@
     #saved-cards-result { white-space: pre-wrap; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; max-width: 900px; margin-top: 10px; }
     .align-end { align-self: end; }
     .full-width { width: 100%; }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 16px;
+    }
+    .modal-backdrop.active { display: flex; }
+    .modal-panel {
+      width: 100%;
+      max-width: 520px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.2);
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .modal-title { margin: 0; font-size: 18px; }
+    .modal-close { background: #fff; }
     .error { color: #dc2626; }
     .success { color: #16a34a; }
   </style>
@@ -67,15 +95,22 @@
     <div id="st-google-pay"></div>
   </div>
 
-  <form id="st-form" class="section" method="POST">
-    <h3>Card</h3>
-    <input type="hidden" name="paymentSessionId" id="payment-session-id" />
-    <input type="hidden" name="requestReference" id="request-reference" />
-    <div id="st-card-number"></div>
-    <div id="st-expiration-date"></div>
-    <div id="st-security-code"></div>
-    <button id="pay-card-btn" type="submit" disabled>Pay securely</button>
-  </form>
+  <div id="card-modal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h3 id="card-modal-title" class="modal-title">Card</h3>
+        <button id="card-modal-close" class="modal-close" type="button">Close</button>
+      </div>
+      <form id="st-form" method="POST">
+        <input type="hidden" name="paymentSessionId" id="payment-session-id" />
+        <input type="hidden" name="requestReference" id="request-reference" />
+        <div id="st-card-number"></div>
+        <div id="st-expiration-date"></div>
+        <div id="st-security-code"></div>
+        <button id="pay-card-btn" type="submit" disabled>Pay securely</button>
+      </form>
+    </div>
+  </div>
 
   <div class="section">
     <h3>Saved Cards</h3>
@@ -179,6 +214,9 @@
       const initCardTokenizeBtn = document.getElementById('init-card-tokenize-btn');
       const payCardBtn = document.getElementById('pay-card-btn');
       const formEl = document.getElementById('st-form');
+      const cardModalEl = document.getElementById('card-modal');
+      const cardModalTitleEl = document.getElementById('card-modal-title');
+      const cardModalCloseEl = document.getElementById('card-modal-close');
       const paymentSessionIdEl = document.getElementById('payment-session-id');
       const requestReferenceEl = document.getElementById('request-reference');
       const cardOwnerIdEl = document.getElementById('card-owner-id');
@@ -235,6 +273,23 @@
         if (Object.keys(details).length > 0) {
           resultEl.style.display = 'block';
           resultEl.textContent = JSON.stringify(details, null, 2);
+        }
+      }
+
+      function openCardModal(titleText) {
+        if (cardModalTitleEl && titleText) {
+          cardModalTitleEl.textContent = titleText;
+        }
+        if (cardModalEl) {
+          cardModalEl.classList.add('active');
+          cardModalEl.setAttribute('aria-hidden', 'false');
+        }
+      }
+
+      function closeCardModal() {
+        if (cardModalEl) {
+          cardModalEl.classList.remove('active');
+          cardModalEl.setAttribute('aria-hidden', 'true');
         }
       }
 
@@ -389,6 +444,7 @@
           const initPayload = await createInitSession('CARD');
 
           formEl.action = api(initPayload.processPath || '/api/v1/payments/card/process');
+          openCardModal('Pay by Card');
 
           const st = SecureTrading({
             jwt: initPayload.jwt,
@@ -406,6 +462,7 @@
                 const verified = await verifyWithBackend(responseJwt);
                 showOutcome(true, 'Card payment successful', { verified, callback: data });
                 localStorage.removeItem('paymentSessionId');
+                closeCardModal();
               } catch (verifyErr) {
                 showOutcome(false, 'Card payment verify failed: ' + formatErrorMessage(verifyErr), {
                   callback: data,
@@ -465,6 +522,7 @@
           requestReferenceEl.value = paymentSessionId;
 
           formEl.action = api(initPayload.processPath || '/api/v1/payments/cards/tokenize/complete');
+          openCardModal('Save Card');
 
           const st = SecureTrading({
             jwt: initPayload.jwt,
@@ -513,6 +571,7 @@
 
                 showOutcome(true, 'Card tokenized and saved successfully', completeData);
                 await listSavedCards();
+                closeCardModal();
               } catch (completeErr) {
                 showOutcome(false, 'Tokenize complete failed: ' + formatErrorMessage(completeErr), {
                   callback: data,
@@ -708,6 +767,21 @@
       }
 
       handleGatewayQueryCallback();
+      if (cardModalCloseEl) {
+        cardModalCloseEl.addEventListener('click', closeCardModal);
+      }
+      if (cardModalEl) {
+        cardModalEl.addEventListener('click', (event) => {
+          if (event.target === cardModalEl) {
+            closeCardModal();
+          }
+        });
+      }
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          closeCardModal();
+        }
+      });
       initGoogleBtn.addEventListener('click', initGooglePay);
       initCardBtn.addEventListener('click', initCard);
       initCardTokenizeBtn.addEventListener('click', initCardTokenize);
