@@ -14,7 +14,7 @@
     input, button { padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
     button { cursor: pointer; }
     textarea { padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-family: inherit; }
-    #st-google-pay { width: 100%; max-width: 420px; height: 60px; margin: 12px 0; border: 1px dashed #ccc; }
+    #st-google-pay, #st-apple-pay { width: 100%; max-width: 420px; height: 60px; margin: 12px 0; border: 1px dashed #ccc; }
     #st-card-number, #st-expiration-date, #st-security-code {
       border: 1px solid #d1d5db;
       border-radius: 6px;
@@ -82,6 +82,7 @@
 
   <div class="row">
     <button id="init-google-btn" type="button">Init Google Pay</button>
+    <button id="init-apple-btn" type="button">Init Apple Pay</button>
     <button id="init-card-btn" type="button">Init Card</button>
     <button id="init-card-tokenize-btn" type="button">Init Save Card (No Payment)</button>
   </div>
@@ -93,6 +94,11 @@
   <div class="section">
     <h3>Google Pay</h3>
     <div id="st-google-pay"></div>
+  </div>
+
+  <div class="section">
+    <h3>Apple Pay</h3>
+    <div id="st-apple-pay"></div>
   </div>
 
   <div id="card-modal" class="modal-backdrop" aria-hidden="true">
@@ -210,6 +216,7 @@
       const currencyEl = document.getElementById('currency');
       const authTokenEl = document.getElementById('auth-token');
       const initGoogleBtn = document.getElementById('init-google-btn');
+      const initAppleBtn = document.getElementById('init-apple-btn');
       const initCardBtn = document.getElementById('init-card-btn');
       const initCardTokenizeBtn = document.getElementById('init-card-tokenize-btn');
       const payCardBtn = document.getElementById('pay-card-btn');
@@ -432,6 +439,62 @@
         } catch (error) {
           showOutcome(false, 'Google Pay initialization failed: ' + formatErrorMessage(error), {
             source: 'google-init'
+          });
+        }
+      }
+
+      async function initApplePay() {
+        try {
+          const canUseApplePay =
+            window.isSecureContext &&
+            typeof window.ApplePaySession !== 'undefined' &&
+            typeof window.ApplePaySession.canMakePayments === 'function' &&
+            window.ApplePaySession.canMakePayments();
+
+          if (!canUseApplePay) {
+            throw new Error('Apple Pay not available in this environment. Use Safari on Apple device over HTTPS with verified domain.');
+          }
+
+          setStatus('Initializing Apple Pay...');
+          const initPayload = await createInitSession('APPLEPAY');
+          const st = SecureTrading({ jwt: initPayload.jwt, errorReporting: true });
+
+          if (typeof st.ApplePay !== 'function') {
+            throw new Error('st.js ApplePay() is not available in this version/config');
+          }
+
+          const appleInit = st.ApplePay({
+            buttonOptions: {
+              buttonRootNode: 'st-apple-pay',
+              buttonStyle: 'black',
+              buttonType: 'buy',
+              buttonLocale: 'en'
+            },
+            paymentRequest: {
+              countryCode: 'US',
+              currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
+              total: {
+                label: 'DropNDash',
+                amount: (amountEl.value || '10.00').trim()
+              },
+              supportedNetworks: ['visa', 'masterCard', 'amex', 'discover'],
+              merchantCapabilities: ['supports3DS']
+            },
+            merchantValidation: {
+              merchantIdentifier: window.APPLE_PAY_MERCHANT_ID || undefined
+            }
+          });
+
+          if (appleInit && typeof appleInit.then === 'function') {
+            appleInit.catch((err) => {
+              showOutcome(false, 'Apple Pay init error: ' + formatErrorMessage(err), { source: 'ApplePay.init' });
+            });
+          }
+
+          showOutcome(true, 'Apple Pay initialized', { init: initPayload });
+        } catch (error) {
+          showOutcome(false, 'Apple Pay initialization failed: ' + formatErrorMessage(error), {
+            source: 'apple-init'
           });
         }
       }
@@ -783,6 +846,7 @@
         }
       });
       initGoogleBtn.addEventListener('click', initGooglePay);
+      initAppleBtn.addEventListener('click', initApplePay);
       initCardBtn.addEventListener('click', initCard);
       initCardTokenizeBtn.addEventListener('click', initCardTokenize);
       saveCardBtn.addEventListener('click', saveCard);
