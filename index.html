@@ -239,6 +239,13 @@
         return (cardOwnerIdEl.value || '').trim();
       }
 
+      function getOwnerType() {
+        const requested = (chargeTypeEl.value || '').trim().toLowerCase();
+        if (requested === 'store') return 'store';
+        if (requested === 'customer' || requested === 'cust') return 'customer';
+        return 'customer';
+      }
+
       function getAuthHeaders() {
         const authToken = (authTokenEl.value || '').trim();
         if (!authToken) {
@@ -425,6 +432,7 @@
       async function saveCard() {
         try {
           const payload = {
+            type: getOwnerType(),
             paymentToken: (savedPaymentTokenEl.value || '').trim(),
             tokenType: (savedTokenTypeEl.value || 'trustpayments').trim(),
             cardBrand: (savedCardBrandEl.value || '').trim() || undefined,
@@ -460,7 +468,13 @@
       async function listSavedCards() {
         try {
           const cardOwnerId = getCardOwnerId();
-          const query = cardOwnerId ? `?cardOwnerId=${encodeURIComponent(cardOwnerId)}` : '';
+          const ownerType = getOwnerType();
+          const queryParams = new URLSearchParams();
+          queryParams.set('type', ownerType);
+          if (cardOwnerId) {
+            queryParams.set('cardOwnerId', cardOwnerId);
+          }
+          const query = `?${queryParams.toString()}`;
 
           const res = await fetch(api(`/api/v1/payments/cards${query}`), {
             method: 'GET',
@@ -488,7 +502,13 @@
           }
 
           const cardOwnerId = getCardOwnerId();
-          const query = cardOwnerId ? `?cardOwnerId=${encodeURIComponent(cardOwnerId)}` : '';
+          const ownerType = getOwnerType();
+          const queryParams = new URLSearchParams();
+          queryParams.set('type', ownerType);
+          if (cardOwnerId) {
+            queryParams.set('cardOwnerId', cardOwnerId);
+          }
+          const query = `?${queryParams.toString()}`;
 
           const res = await fetch(api(`/api/v1/payments/cards/${cardId}${query}`), {
             method: 'DELETE',
