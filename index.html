@@ -445,14 +445,18 @@
 
       async function initApplePay() {
         try {
-          const canUseApplePay =
-            window.isSecureContext &&
-            typeof window.ApplePaySession !== 'undefined' &&
+          const hasApplePaySession = typeof window.ApplePaySession !== 'undefined';
+          const canMakePayments =
+            hasApplePaySession &&
             typeof window.ApplePaySession.canMakePayments === 'function' &&
             window.ApplePaySession.canMakePayments();
 
-          if (!canUseApplePay) {
-            throw new Error('Apple Pay not available in this environment. Use Safari on Apple device over HTTPS with verified domain.');
+          if (!window.isSecureContext) {
+            throw new Error('Apple Pay requires HTTPS (secure context).');
+          }
+
+          if (!hasApplePaySession || !canMakePayments) {
+            setStatus('Apple Pay may not be payable in this browser/device; attempting initialization for button visibility.', 'error');
           }
 
           setStatus('Initializing Apple Pay...');
