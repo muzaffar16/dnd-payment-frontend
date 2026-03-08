@@ -467,17 +467,7 @@
             throw new Error('st.js ApplePay() is not available in this version/config');
           }
 
-          const appleInit = st.ApplePay({
-            buttonRootNode: 'st-apple-pay',
-            paymentRequest: {
-              countryCode: 'US',
-              currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
-              total: {
-                label: 'DropNDash',
-                amount: (amountEl.value || '10.00').trim()
-              }
-            }
-          });
+          const appleInit = st.ApplePay();
 
           if (appleInit && typeof appleInit.then === 'function') {
             appleInit.catch((err) => {
