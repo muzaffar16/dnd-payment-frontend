@@ -55,6 +55,7 @@
   <div class="row">
     <button id="init-google-btn" type="button">Init Google Pay</button>
     <button id="init-card-btn" type="button">Init Card</button>
+    <button id="init-card-tokenize-btn" type="button">Init Save Card (No Payment)</button>
   </div>
 
   <p id="status">Idle</p>
@@ -175,6 +176,7 @@
       const authTokenEl = document.getElementById('auth-token');
       const initGoogleBtn = document.getElementById('init-google-btn');
       const initCardBtn = document.getElementById('init-card-btn');
+      const initCardTokenizeBtn = document.getElementById('init-card-tokenize-btn');
       const payCardBtn = document.getElementById('pay-card-btn');
       const formEl = document.getElementById('st-form');
       const paymentSessionIdEl = document.getElementById('payment-session-id');
@@ -201,6 +203,7 @@
       const API_BASE_URL = (window.PAYMENT_API_BASE_URL || '').replace(/\/$/, '');
       const api = (path) => `${API_BASE_URL}${path}`;
       let paymentSessionId = localStorage.getItem('paymentSessionId') || '';
+      let cardFlowMode = 'PAYMENT';
 
       authTokenEl.value = window.PAYMENT_AUTH_TOKEN || TEST_AUTH_TOKEN;
       cardOwnerIdEl.value = window.PAYMENT_CARD_OWNER_ID || '';
@@ -381,6 +384,8 @@
       async function initCard() {
         try {
           setStatus('Initializing card form...');
+          cardFlowMode = 'PAYMENT';
+          payCardBtn.textContent = 'Pay securely';
           const initPayload = await createInitSession('CARD');
 
           formEl.action = api(initPayload.processPath || '/api/v1/payments/card/process');
@@ -425,6 +430,113 @@
         } catch (error) {
           showOutcome(false, 'Card initialization failed: ' + formatErrorMessage(error), {
             source: 'card-init'
+          });
+        }
+      }
+
+      async function initCardTokenize() {
+        try {
+          setStatus('Initializing save-card form...');
+          cardFlowMode = 'TOKENIZE_ONLY';
+          payCardBtn.textContent = 'Save card token';
+
+          const ownerType = getOwnerType();
+          const amount = (amountEl.value || '1.00').trim();
+          const currency = (currencyEl.value || 'USD').trim().toUpperCase();
+
+          const res = await fetch(api('/api/v1/payments/cards/tokenize/init'), {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+              type: ownerType,
+              amount,
+              currency
+            })
+          });
+
+          const initPayload = await res.json();
+          if (!res.ok || !initPayload.success || !initPayload.jwt || !initPayload.paymentSessionId) {
+            throw new Error(initPayload.message || initPayload.error || 'Tokenize init failed');
+          }
+
+          paymentSessionId = initPayload.paymentSessionId;
+          localStorage.setItem('paymentSessionId', paymentSessionId);
+          paymentSessionIdEl.value = paymentSessionId;
+          requestReferenceEl.value = paymentSessionId;
+
+          formEl.action = api(initPayload.processPath || '/api/v1/payments/cards/tokenize/complete');
+
+          const st = SecureTrading({
+            jwt: initPayload.jwt,
+            errorReporting: true,
+            submitOnSuccess: false,
+            submitOnError: false,
+            submitOnCancel: false,
+            submitCallback: async (data) => {
+              const responseJwt = data && (data.jwt || data.responsejwt || data.responseJwt);
+              if (!responseJwt) {
+                showOutcome(false, 'Tokenization failed: JWT missing in callback', { callback: data || null });
+                return;
+              }
+
+              try {
+                const completeRes = await fetch(api('/api/v1/payments/cards/tokenize/complete'), {
+                  method: 'POST',
+                  headers: getAuthHeaders(),
+                  body: JSON.stringify({
+                    type: ownerType,
+                    jwt: responseJwt,
+                    paymentSessionId,
+                    isDefault: Boolean(savedIsDefaultEl.checked)
+                  })
+                });
+                const completeData = await completeRes.json();
+                if (!completeRes.ok || !completeData.success) {
+                  throw new Error(completeData.message || completeData.error || 'Tokenize complete failed');
+                }
+
+                if (completeData?.tokenized?.token) {
+                  savedPaymentTokenEl.value = completeData.tokenized.token;
+                }
+                if (completeData?.tokenized?.cardType) {
+                  savedCardBrandEl.value = completeData.tokenized.cardType;
+                }
+                if (completeData?.tokenized?.last4) {
+                  savedLast4El.value = completeData.tokenized.last4;
+                }
+                if (completeData?.tokenized?.expiryMonth) {
+                  savedExpiryMonthEl.value = completeData.tokenized.expiryMonth;
+                }
+                if (completeData?.tokenized?.expiryYear) {
+                  savedExpiryYearEl.value = completeData.tokenized.expiryYear;
+                }
+
+                showOutcome(true, 'Card tokenized and saved successfully', completeData);
+                await listSavedCards();
+              } catch (completeErr) {
+                showOutcome(false, 'Tokenize complete failed: ' + formatErrorMessage(completeErr), {
+                  callback: data,
+                  error: formatErrorMessage(completeErr)
+                });
+              }
+            },
+            components: {
+              callbacks: {
+                onPaymentFormRendered() {
+                  setStatus('Save-card form ready', 'success');
+                },
+                onPaymentFormValidityChange(data) {
+                  payCardBtn.disabled = !(data && data.isFormValid);
+                }
+              }
+            }
+          });
+
+          st.Components();
+          showOutcome(true, 'Save-card tokenization initialized', { init: initPayload });
+        } catch (error) {
+          showOutcome(false, 'Tokenization init failed: ' + formatErrorMessage(error), {
+            source: 'tokenize-init'
           });
         }
       }
@@ -598,6 +710,7 @@
       handleGatewayQueryCallback();
       initGoogleBtn.addEventListener('click', initGooglePay);
       initCardBtn.addEventListener('click', initCard);
+      initCardTokenizeBtn.addEventListener('click', initCardTokenize);
       saveCardBtn.addEventListener('click', saveCard);
       listCardsBtn.addEventListener('click', listSavedCards);
       deleteCardBtn.addEventListener('click', deleteSavedCard);

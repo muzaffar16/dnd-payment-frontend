@@ -40,6 +40,8 @@ Trust CDN blocks `localhost`/`127.0.0.1`, so open using your machine IPv4 URL (f
 
 This frontend now includes a **Saved Cards** section with:
 
+- Init save-card without payment -> `POST /api/v1/payments/cards/tokenize/init`
+- Complete save-card tokenization -> `POST /api/v1/payments/cards/tokenize/complete`
 - Save card -> `POST /api/v1/payments/cards/save`
 - List cards -> `GET /api/v1/payments/cards`
 - Delete card -> `DELETE /api/v1/payments/cards/:cardId`
@@ -51,3 +53,4 @@ Notes:
 - Use `cardOwnerId` for stable owner mapping across sessions/devices.
 - `Charge saved card` endpoint expects callback `jwt` and existing `paymentSessionId`.
 - Do not send PAN/CVV; backend accepts tokenized card data only.
+- Use the UI button **Init Save Card (No Payment)** to tokenize + store card without regular checkout payment flow.
