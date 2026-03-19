@@ -24,10 +24,7 @@
     }
     #pay-card-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
     #payment-result { display: none; white-space: pre-wrap; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; max-width: 900px; }
-<<<<<<< HEAD
-=======
     #saved-cards-result { white-space: pre-wrap; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; max-width: 900px; margin-top: 10px; max-height: 280px; overflow: auto; }
->>>>>>> 4528d97eb3cac007ab9d7216cf2f049015fe0fb0
     .align-end { align-self: end; }
     .full-width { width: 100%; }
     .modal-backdrop {
@@ -105,10 +102,6 @@
       <label for="auth-token">Auth Token</label>
       <input id="auth-token" type="text" />
     </div>
-    <div class="field">
-      <label for="owner-type">Owner Type</label>
-      <input id="owner-type" type="text" value="customer" />
-    </div>
   </div>
 
   <div class="row">
@@ -152,8 +145,6 @@
     </div>
   </div>
 
-<<<<<<< HEAD
-=======
   <div class="section saved-cards">
     <h3>Saved Cards</h3>
     <div class="row">
@@ -246,7 +237,6 @@
     <pre id="saved-cards-result">[]</pre>
   </div>
 
->>>>>>> 4528d97eb3cac007ab9d7216cf2f049015fe0fb0
   <script src="./config.js"></script>
   <script src="https://cdn.eu.trustpayments.com/js/latest/st.js"></script>
   <script>
@@ -259,7 +249,6 @@
       const amountEl = document.getElementById('amount');
       const currencyEl = document.getElementById('currency');
       const authTokenEl = document.getElementById('auth-token');
-      const ownerTypeEl = document.getElementById('owner-type');
       const initGoogleBtn = document.getElementById('init-google-btn');
       const initAppleBtn = document.getElementById('init-apple-btn');
       const initCardBtn = document.getElementById('init-card-btn');
@@ -271,8 +260,6 @@
       const cardModalCloseEl = document.getElementById('card-modal-close');
       const paymentSessionIdEl = document.getElementById('payment-session-id');
       const requestReferenceEl = document.getElementById('request-reference');
-<<<<<<< HEAD
-=======
       const cardOwnerIdEl = document.getElementById('card-owner-id');
       const savedOwnerTypeEl = document.getElementById('saved-owner-type');
       const savedPaymentTokenEl = document.getElementById('saved-payment-token');
@@ -292,7 +279,6 @@
       const chargeJwtEl = document.getElementById('charge-jwt');
       const chargeCardBtn = document.getElementById('charge-card-btn');
       const savedCardsResultEl = document.getElementById('saved-cards-result');
->>>>>>> 4528d97eb3cac007ab9d7216cf2f049015fe0fb0
 
       const API_BASE_URL = (window.PAYMENT_API_BASE_URL || '').replace(/\/$/, '');
       const api = (path) => `${API_BASE_URL}${path}`;
@@ -300,7 +286,7 @@
       let cardFlowMode = 'PAYMENT';
 
       authTokenEl.value = window.PAYMENT_AUTH_TOKEN || TEST_AUTH_TOKEN;
-      ownerTypeEl.value = (window.PAYMENT_OWNER_TYPE || ownerTypeEl.value || 'customer');
+      cardOwnerIdEl.value = window.PAYMENT_CARD_OWNER_ID || '';
 
       function formatErrorMessage(error) {
         if (!error) return 'Unknown error';
@@ -349,12 +335,12 @@
         }
       }
 
+      function getCardOwnerId() {
+        return (cardOwnerIdEl.value || '').trim();
+      }
+
       function getOwnerType() {
-<<<<<<< HEAD
-        const requested = (ownerTypeEl.value || '').trim().toLowerCase();
-=======
         const requested = String(savedOwnerTypeEl?.value || chargeTypeEl?.value || '').trim().toLowerCase();
->>>>>>> 4528d97eb3cac007ab9d7216cf2f049015fe0fb0
         if (requested === 'store') return 'store';
         if (requested === 'customer' || requested === 'cust') return 'customer';
         return 'customer';
@@ -369,6 +355,11 @@
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`
         };
+      }
+
+      function updateSavedCardsResult(cards) {
+        if (!savedCardsResultEl) return;
+        savedCardsResultEl.textContent = JSON.stringify(cards || [], null, 2);
       }
 
       async function verifyWithBackend(responseJwt) {
@@ -675,7 +666,7 @@
                     type: ownerType,
                     jwt: responseJwt,
                     paymentSessionId,
-                    isDefault: false
+                    isDefault: Boolean(savedIsDefaultEl.checked)
                   })
                 });
                 const completeData = await completeRes.json();
@@ -683,7 +674,24 @@
                   throw new Error(completeData.message || completeData.error || 'Tokenize complete failed');
                 }
 
+                if (completeData?.tokenized?.token) {
+                  savedPaymentTokenEl.value = completeData.tokenized.token;
+                }
+                if (completeData?.tokenized?.cardType) {
+                  savedCardBrandEl.value = completeData.tokenized.cardType;
+                }
+                if (completeData?.tokenized?.last4) {
+                  savedLast4El.value = completeData.tokenized.last4;
+                }
+                if (completeData?.tokenized?.expiryMonth) {
+                  savedExpiryMonthEl.value = completeData.tokenized.expiryMonth;
+                }
+                if (completeData?.tokenized?.expiryYear) {
+                  savedExpiryYearEl.value = completeData.tokenized.expiryYear;
+                }
+
                 showOutcome(true, 'Card tokenized and saved successfully', completeData);
+                await listSavedCards();
                 closeCardModal();
               } catch (completeErr) {
                 showOutcome(false, 'Tokenize complete failed: ' + formatErrorMessage(completeErr), {
@@ -713,8 +721,6 @@
         }
       }
 
-<<<<<<< HEAD
-=======
       async function saveCard() {
         try {
           const payload = {
@@ -859,7 +865,6 @@
         }
       }
 
->>>>>>> 4528d97eb3cac007ab9d7216cf2f049015fe0fb0
       window.addEventListener('error', (event) => {
         showOutcome(false, 'Error: ' + formatErrorMessage(event.error || event.message), { source: 'window.error' });
       });
@@ -908,10 +913,11 @@
       initAppleBtn.addEventListener('click', initApplePay);
       initCardBtn.addEventListener('click', initCard);
       initCardTokenizeBtn.addEventListener('click', initCardTokenize);
+      saveCardBtn.addEventListener('click', saveCard);
+      listCardsBtn.addEventListener('click', listSavedCards);
+      deleteCardBtn.addEventListener('click', deleteSavedCard);
+      chargeCardBtn.addEventListener('click', chargeSavedCard);
     })();
   </script>
 </body>
 </html>
-
-
-
