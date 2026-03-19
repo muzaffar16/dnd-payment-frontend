@@ -24,7 +24,6 @@
     }
     #pay-card-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
     #payment-result { display: none; white-space: pre-wrap; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; max-width: 900px; }
-    #saved-cards-result { white-space: pre-wrap; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; max-width: 900px; margin-top: 10px; max-height: 280px; overflow: auto; }
     .align-end { align-self: end; }
     .full-width { width: 100%; }
     .modal-backdrop {
@@ -61,27 +60,6 @@
     .error { color: #dc2626; }
     .success { color: #16a34a; }
 
-    /* Saved card UI */
-    .saved-cards { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; }
-    .saved-cards h3 { margin-top: 0; }
-    .saved-cards .row { margin-bottom: 10px; }
-    .saved-cards .field { flex: 1 1 220px; min-width: 220px; }
-    .saved-cards .field.wide { flex: 2 1 380px; min-width: 320px; }
-    .saved-cards .checkbox-row { align-items: center; }
-    .saved-cards label.checkbox {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 10px;
-      border: 1px solid #d1d5db;
-      border-radius: 10px;
-      background: #fff;
-      user-select: none;
-    }
-    .saved-cards input[type="checkbox"] { width: 16px; height: 16px; }
-    .saved-cards .button-row { display: flex; gap: 10px; flex-wrap: wrap; }
-    .saved-cards .button-row button { background: #111827; color: #fff; border-color: #111827; }
-    .saved-cards .button-row button.secondary { background: #fff; color: #111827; }
   </style>
 </head>
 <body>
@@ -101,6 +79,13 @@
     <div class="field wide">
       <label for="auth-token">Auth Token</label>
       <input id="auth-token" type="text" />
+    </div>
+    <div class="field">
+      <label for="owner-type">Owner Type</label>
+      <select id="owner-type">
+        <option value="customer" selected>Customer</option>
+        <option value="store">Store</option>
+      </select>
     </div>
   </div>
 
@@ -145,98 +130,6 @@
     </div>
   </div>
 
-  <div class="section saved-cards">
-    <h3>Saved Cards</h3>
-    <div class="row">
-      <div class="field">
-        <label for="card-owner-id">Card Owner Id (recommended)</label>
-        <input id="card-owner-id" type="text" placeholder="user-123" />
-      </div>
-      <div class="field">
-        <label for="saved-owner-type">Owner Type</label>
-        <select id="saved-owner-type">
-          <option value="cust" selected>Customer</option>
-          <option value="store">Store</option>
-        </select>
-      </div>
-      <div class="field wide">
-        <label for="saved-payment-token">Payment Token</label>
-        <input id="saved-payment-token" type="text" placeholder="token from gateway" />
-      </div>
-      <div class="field">
-        <label for="saved-token-type">Token Type</label>
-        <input id="saved-token-type" type="text" value="trustpayments" />
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="field">
-        <label for="saved-card-brand">Card Brand</label>
-        <input id="saved-card-brand" type="text" placeholder="VISA" />
-      </div>
-      <div class="field">
-        <label for="saved-last4">Last4</label>
-        <input id="saved-last4" type="text" maxlength="4" placeholder="4242" />
-      </div>
-      <div class="field">
-        <label for="saved-expiry-month">Expiry Month</label>
-        <input id="saved-expiry-month" type="text" placeholder="12" />
-      </div>
-      <div class="field">
-        <label for="saved-expiry-year">Expiry Year</label>
-        <input id="saved-expiry-year" type="text" placeholder="2029" />
-      </div>
-      <div class="field wide">
-        <label for="saved-cardholder-name">Cardholder Name</label>
-        <input id="saved-cardholder-name" type="text" placeholder="John Doe" />
-      </div>
-    </div>
-
-    <div class="row checkbox-row">
-      <label class="checkbox" for="saved-is-default">
-        <input id="saved-is-default" type="checkbox" /> Set as default
-      </label>
-    </div>
-
-    <div class="row button-row">
-      <button id="save-card-btn" type="button">Save Card</button>
-      <button id="list-cards-btn" class="secondary" type="button">List Saved Cards</button>
-    </div>
-
-    <div class="row">
-      <div class="field">
-        <label for="delete-card-id">Delete Card Id</label>
-        <input id="delete-card-id" type="number" min="1" />
-      </div>
-      <div class="field align-end">
-        <button id="delete-card-btn" type="button">Delete Saved Card</button>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="field">
-        <label for="charge-card-id">Charge Card Id</label>
-        <input id="charge-card-id" type="number" min="1" />
-      </div>
-      <div class="field">
-        <label for="charge-type">Type</label>
-        <input id="charge-type" type="text" value="cust" />
-      </div>
-      <div class="field align-end">
-        <button id="charge-card-btn" type="button">Charge Saved Card</button>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="field wide full-width">
-        <label for="charge-jwt">Charge JWT (callback JWT)</label>
-        <textarea id="charge-jwt" rows="4" placeholder="Paste callback jwt here"></textarea>
-      </div>
-    </div>
-
-    <pre id="saved-cards-result">[]</pre>
-  </div>
-
   <script src="./config.js"></script>
   <script src="https://cdn.eu.trustpayments.com/js/latest/st.js"></script>
   <script>
@@ -249,6 +142,7 @@
       const amountEl = document.getElementById('amount');
       const currencyEl = document.getElementById('currency');
       const authTokenEl = document.getElementById('auth-token');
+      const ownerTypeEl = document.getElementById('owner-type');
       const initGoogleBtn = document.getElementById('init-google-btn');
       const initAppleBtn = document.getElementById('init-apple-btn');
       const initCardBtn = document.getElementById('init-card-btn');
@@ -260,25 +154,6 @@
       const cardModalCloseEl = document.getElementById('card-modal-close');
       const paymentSessionIdEl = document.getElementById('payment-session-id');
       const requestReferenceEl = document.getElementById('request-reference');
-      const cardOwnerIdEl = document.getElementById('card-owner-id');
-      const savedOwnerTypeEl = document.getElementById('saved-owner-type');
-      const savedPaymentTokenEl = document.getElementById('saved-payment-token');
-      const savedTokenTypeEl = document.getElementById('saved-token-type');
-      const savedCardBrandEl = document.getElementById('saved-card-brand');
-      const savedLast4El = document.getElementById('saved-last4');
-      const savedExpiryMonthEl = document.getElementById('saved-expiry-month');
-      const savedExpiryYearEl = document.getElementById('saved-expiry-year');
-      const savedCardholderNameEl = document.getElementById('saved-cardholder-name');
-      const savedIsDefaultEl = document.getElementById('saved-is-default');
-      const saveCardBtn = document.getElementById('save-card-btn');
-      const listCardsBtn = document.getElementById('list-cards-btn');
-      const deleteCardIdEl = document.getElementById('delete-card-id');
-      const deleteCardBtn = document.getElementById('delete-card-btn');
-      const chargeCardIdEl = document.getElementById('charge-card-id');
-      const chargeTypeEl = document.getElementById('charge-type');
-      const chargeJwtEl = document.getElementById('charge-jwt');
-      const chargeCardBtn = document.getElementById('charge-card-btn');
-      const savedCardsResultEl = document.getElementById('saved-cards-result');
 
       const API_BASE_URL = (window.PAYMENT_API_BASE_URL || '').replace(/\/$/, '');
       const api = (path) => `${API_BASE_URL}${path}`;
@@ -286,7 +161,7 @@
       let cardFlowMode = 'PAYMENT';
 
       authTokenEl.value = window.PAYMENT_AUTH_TOKEN || TEST_AUTH_TOKEN;
-      cardOwnerIdEl.value = window.PAYMENT_CARD_OWNER_ID || '';
+      ownerTypeEl.value = window.PAYMENT_OWNER_TYPE || ownerTypeEl.value || 'customer';
 
       function formatErrorMessage(error) {
         if (!error) return 'Unknown error';
@@ -335,12 +210,8 @@
         }
       }
 
-      function getCardOwnerId() {
-        return (cardOwnerIdEl.value || '').trim();
-      }
-
       function getOwnerType() {
-        const requested = String(savedOwnerTypeEl?.value || chargeTypeEl?.value || '').trim().toLowerCase();
+        const requested = String(ownerTypeEl?.value || '').trim().toLowerCase();
         if (requested === 'store') return 'store';
         if (requested === 'customer' || requested === 'cust') return 'customer';
         return 'customer';
@@ -355,11 +226,6 @@
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`
         };
-      }
-
-      function updateSavedCardsResult(cards) {
-        if (!savedCardsResultEl) return;
-        savedCardsResultEl.textContent = JSON.stringify(cards || [], null, 2);
       }
 
       async function verifyWithBackend(responseJwt) {
@@ -666,7 +532,7 @@
                     type: ownerType,
                     jwt: responseJwt,
                     paymentSessionId,
-                    isDefault: Boolean(savedIsDefaultEl.checked)
+                    isDefault: false
                   })
                 });
                 const completeData = await completeRes.json();
@@ -674,24 +540,7 @@
                   throw new Error(completeData.message || completeData.error || 'Tokenize complete failed');
                 }
 
-                if (completeData?.tokenized?.token) {
-                  savedPaymentTokenEl.value = completeData.tokenized.token;
-                }
-                if (completeData?.tokenized?.cardType) {
-                  savedCardBrandEl.value = completeData.tokenized.cardType;
-                }
-                if (completeData?.tokenized?.last4) {
-                  savedLast4El.value = completeData.tokenized.last4;
-                }
-                if (completeData?.tokenized?.expiryMonth) {
-                  savedExpiryMonthEl.value = completeData.tokenized.expiryMonth;
-                }
-                if (completeData?.tokenized?.expiryYear) {
-                  savedExpiryYearEl.value = completeData.tokenized.expiryYear;
-                }
-
                 showOutcome(true, 'Card tokenized and saved successfully', completeData);
-                await listSavedCards();
                 closeCardModal();
               } catch (completeErr) {
                 showOutcome(false, 'Tokenize complete failed: ' + formatErrorMessage(completeErr), {
@@ -718,150 +567,6 @@
           showOutcome(false, 'Tokenization init failed: ' + formatErrorMessage(error), {
             source: 'tokenize-init'
           });
-        }
-      }
-
-      async function saveCard() {
-        try {
-          const payload = {
-            type: getOwnerType(),
-            paymentToken: (savedPaymentTokenEl.value || '').trim(),
-            tokenType: (savedTokenTypeEl.value || 'trustpayments').trim(),
-            cardBrand: (savedCardBrandEl.value || '').trim() || undefined,
-            last4: (savedLast4El.value || '').trim() || undefined,
-            expiryMonth: (savedExpiryMonthEl.value || '').trim() || undefined,
-            expiryYear: (savedExpiryYearEl.value || '').trim() || undefined,
-            cardholderName: (savedCardholderNameEl.value || '').trim() || undefined,
-            isDefault: Boolean(savedIsDefaultEl.checked)
-          };
-
-          const cardOwnerId = getCardOwnerId();
-          if (cardOwnerId) {
-            payload.cardOwnerId = cardOwnerId;
-          }
-
-          const res = await fetch(api('/api/v1/payments/cards/save'), {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify(payload)
-          });
-          const data = await res.json();
-          if (!res.ok || !data.success) {
-            throw new Error(data.message || data.error || 'Save card failed');
-          }
-
-          showOutcome(true, 'Saved card successfully', data);
-          await listSavedCards();
-        } catch (error) {
-          showOutcome(false, 'Save card failed: ' + formatErrorMessage(error), { source: 'save-card' });
-        }
-      }
-
-      async function listSavedCards() {
-        try {
-          const cardOwnerId = getCardOwnerId();
-          const ownerType = getOwnerType();
-          const queryParams = new URLSearchParams();
-          queryParams.set('type', ownerType);
-          if (cardOwnerId) {
-            queryParams.set('cardOwnerId', cardOwnerId);
-          }
-          const query = `?${queryParams.toString()}`;
-
-          const res = await fetch(api(`/api/v1/payments/cards${query}`), {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${(authTokenEl.value || '').trim()}`
-            }
-          });
-          const data = await res.json();
-          if (!res.ok || !data.success) {
-            throw new Error(data.message || data.error || 'List saved cards failed');
-          }
-
-          updateSavedCardsResult(data.cards || []);
-          showOutcome(true, 'Saved cards loaded', { count: (data.cards || []).length });
-        } catch (error) {
-          showOutcome(false, 'List saved cards failed: ' + formatErrorMessage(error), { source: 'list-cards' });
-        }
-      }
-
-      async function deleteSavedCard() {
-        try {
-          const cardId = Number.parseInt(deleteCardIdEl.value, 10);
-          if (!Number.isFinite(cardId) || cardId <= 0) {
-            throw new Error('Delete Card Id must be a positive integer');
-          }
-
-          const cardOwnerId = getCardOwnerId();
-          const ownerType = getOwnerType();
-          const queryParams = new URLSearchParams();
-          queryParams.set('type', ownerType);
-          if (cardOwnerId) {
-            queryParams.set('cardOwnerId', cardOwnerId);
-          }
-          const query = `?${queryParams.toString()}`;
-
-          const res = await fetch(api(`/api/v1/payments/cards/${cardId}${query}`), {
-            method: 'DELETE',
-            headers: {
-              Authorization: `Bearer ${(authTokenEl.value || '').trim()}`
-            }
-          });
-          const data = await res.json();
-          if (!res.ok || !data.success) {
-            throw new Error(data.message || data.error || 'Delete saved card failed');
-          }
-
-          showOutcome(true, 'Saved card deleted', data);
-          await listSavedCards();
-        } catch (error) {
-          showOutcome(false, 'Delete saved card failed: ' + formatErrorMessage(error), { source: 'delete-card' });
-        }
-      }
-
-      async function chargeSavedCard() {
-        try {
-          const cardId = Number.parseInt(chargeCardIdEl.value, 10);
-          if (!Number.isFinite(cardId) || cardId <= 0) {
-            throw new Error('Charge Card Id must be a positive integer');
-          }
-
-          if (!paymentSessionId) {
-            throw new Error('paymentSessionId is missing. Run init flow first.');
-          }
-
-          const responseJwt = (chargeJwtEl.value || '').trim();
-          if (!responseJwt) {
-            throw new Error('Charge JWT is required');
-          }
-
-          const payload = {
-            cardId,
-            paymentSessionId,
-            requestReference: paymentSessionId,
-            jwt: responseJwt,
-            type: (getOwnerType() === 'store' ? 'store' : 'cust')
-          };
-
-          const cardOwnerId = getCardOwnerId();
-          if (cardOwnerId) {
-            payload.cardOwnerId = cardOwnerId;
-          }
-
-          const res = await fetch(api('/api/v1/payments/cards/charge'), {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify(payload)
-          });
-          const data = await res.json();
-          if (!res.ok || data.verified === false || data.success === false) {
-            throw new Error(data.message || data.error || 'Charge saved card failed');
-          }
-
-          showOutcome(true, 'Saved card charge response received', data);
-        } catch (error) {
-          showOutcome(false, 'Charge saved card failed: ' + formatErrorMessage(error), { source: 'charge-card' });
         }
       }
 
@@ -903,20 +608,10 @@
           closeCardModal();
         }
       });
-      if (savedOwnerTypeEl && chargeTypeEl) {
-        chargeTypeEl.value = savedOwnerTypeEl.value || chargeTypeEl.value;
-        savedOwnerTypeEl.addEventListener('change', () => {
-          chargeTypeEl.value = savedOwnerTypeEl.value;
-        });
-      }
       initGoogleBtn.addEventListener('click', initGooglePay);
       initAppleBtn.addEventListener('click', initApplePay);
       initCardBtn.addEventListener('click', initCard);
       initCardTokenizeBtn.addEventListener('click', initCardTokenize);
-      saveCardBtn.addEventListener('click', saveCard);
-      listCardsBtn.addEventListener('click', listSavedCards);
-      deleteCardBtn.addEventListener('click', deleteSavedCard);
-      chargeCardBtn.addEventListener('click', chargeSavedCard);
     })();
   </script>
 </body>
