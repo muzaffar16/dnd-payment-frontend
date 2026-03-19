@@ -2,3 +2,7 @@
 window.APPLE_PAY_MERCHANT_ID = 'merchant.com.app.dropndash';
 
 
+
+// Optional:
+// window.PAYMENT_AUTH_TOKEN = '<bearer token>';
+// window.PAYMENT_CARD_OWNER_ID = '<card owner id>';

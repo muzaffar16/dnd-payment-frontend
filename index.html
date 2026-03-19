@@ -11,7 +11,7 @@
     .field { display: flex; flex-direction: column; gap: 6px; min-width: 180px; }
     .field.wide { min-width: 280px; }
     .section { margin-top: 20px; padding-top: 14px; border-top: 1px solid #e5e7eb; }
-    input, button { padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+    input, button, select { padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
     button { cursor: pointer; }
     textarea { padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-family: inherit; }
     #st-google-pay, #st-apple-pay { width: 100%; max-width: 420px; height: 60px; margin: 12px 0; border: 1px dashed #ccc; }
@@ -152,6 +152,13 @@
         <label for="card-owner-id">Card Owner Id (recommended)</label>
         <input id="card-owner-id" type="text" placeholder="user-123" />
       </div>
+      <div class="field">
+        <label for="saved-owner-type">Owner Type</label>
+        <select id="saved-owner-type">
+          <option value="cust" selected>Customer</option>
+          <option value="store">Store</option>
+        </select>
+      </div>
       <div class="field wide">
         <label for="saved-payment-token">Payment Token</label>
         <input id="saved-payment-token" type="text" placeholder="token from gateway" />
@@ -254,6 +261,7 @@
       const paymentSessionIdEl = document.getElementById('payment-session-id');
       const requestReferenceEl = document.getElementById('request-reference');
       const cardOwnerIdEl = document.getElementById('card-owner-id');
+      const savedOwnerTypeEl = document.getElementById('saved-owner-type');
       const savedPaymentTokenEl = document.getElementById('saved-payment-token');
       const savedTokenTypeEl = document.getElementById('saved-token-type');
       const savedCardBrandEl = document.getElementById('saved-card-brand');
@@ -332,7 +340,7 @@
       }
 
       function getOwnerType() {
-        const requested = (chargeTypeEl.value || '').trim().toLowerCase();
+        const requested = String(savedOwnerTypeEl?.value || chargeTypeEl?.value || '').trim().toLowerCase();
         if (requested === 'store') return 'store';
         if (requested === 'customer' || requested === 'cust') return 'customer';
         return 'customer';
@@ -833,7 +841,7 @@
             paymentSessionId,
             requestReference: paymentSessionId,
             jwt: responseJwt,
-            type: (chargeTypeEl.value || 'cust').trim().toLowerCase() || 'cust'
+            type: (getOwnerType() === 'store' ? 'store' : 'cust')
           };
 
           const cardOwnerId = getCardOwnerId();
@@ -895,6 +903,12 @@
           closeCardModal();
         }
       });
+      if (savedOwnerTypeEl && chargeTypeEl) {
+        chargeTypeEl.value = savedOwnerTypeEl.value || chargeTypeEl.value;
+        savedOwnerTypeEl.addEventListener('change', () => {
+          chargeTypeEl.value = savedOwnerTypeEl.value;
+        });
+      }
       initGoogleBtn.addEventListener('click', initGooglePay);
       initAppleBtn.addEventListener('click', initApplePay);
       initCardBtn.addEventListener('click', initCard);
@@ -907,3 +921,6 @@
   </script>
 </body>
 </html>
+
+
+
