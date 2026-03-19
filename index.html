@@ -346,6 +346,7 @@
 
       async function initApplePay() {
         try {
+          const appleSiteReference = window.APPLE_PAY_SITE_REFERENCE || window.APPLE_PAY_MERCHANT_ID || '';
           // Apple Pay diagnostics panel
           const applePayDiagnostics = document.getElementById('applepay-diagnostics');
           function printApplePayDiagnostics() {
@@ -384,6 +385,10 @@
             console.warn('Apple Pay not payable:', { hasApplePaySession, canMakePayments });
           }
 
+          if (!appleSiteReference) {
+            throw new Error('Apple Pay site reference missing. Set window.APPLE_PAY_SITE_REFERENCE in config.js');
+          }
+
           setStatus('Initializing Apple Pay...');
           const initPayload = await createInitSession('APPLEPAY');
           console.log('Apple Pay JWT:', initPayload.jwt);
@@ -394,7 +399,27 @@
             throw new Error('st.js ApplePay() is not available in this version/config');
           }
 
-          const appleInit = st.ApplePay();
+          const appleInit = st.ApplePay({
+            buttonStyle: 'black',
+            buttonText: 'pay',
+            // Trust Payments: use site reference (not Apple merchantId) after May 2024 changes
+            merchantId: appleSiteReference,
+            paymentRequest: {
+              countryCode: (currencyEl.value || 'USD').trim().toUpperCase(),
+              currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
+              merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
+              supportedNetworks: ['visa', 'masterCard', 'amex'],
+              requiredBillingContactFields: ['postalAddress'],
+              requiredShippingContactFields: ['postalAddress', 'name', 'phone', 'email'],
+              total: {
+                label: 'DropN-Dash',
+                amount: (amountEl.value || '10.00').trim()
+              }
+            },
+            buttonPlacement: 'st-apple-pay'
+            // Optional alternate flow:
+            // merchantUrl: api('/api/v1/payments/applepay/process')
+          });
           if (!appleInit) {
             console.error('st.ApplePay() did not return an object');
           }
