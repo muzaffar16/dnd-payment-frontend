@@ -510,7 +510,7 @@
           payCardBtn.textContent = 'Save card token';
 
           const ownerType = getOwnerType();
-          const amount = (amountEl.value || '1.00').trim();
+          const amount = '0';
           const currency = (currencyEl.value || 'USD').trim().toUpperCase();
 
           const res = await fetch(api('/api/v1/payments/cards/tokenize/init'), {
