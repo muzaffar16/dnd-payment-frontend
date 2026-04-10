@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -442,7 +442,7 @@
             const container = document.getElementById('st-apple-pay');
             console.log('Apple Pay container HTML:', container.innerHTML);
             if (!container.innerHTML.trim()) {
-              setStatus('⚠️ Apple Pay button not rendered. Possible reasons:<br>• Merchant/domain not verified<br>• Trust Payments config issue<br>• Check console for errors', 'error');
+              setStatus('?? Apple Pay button not rendered. Possible reasons:<br>� Merchant/domain not verified<br>� Trust Payments config issue<br>� Check console for errors', 'error');
             }
           }, 2000);
 
@@ -517,7 +517,10 @@
           payCardBtn.textContent = 'Save card token';
 
           const ownerType = getOwnerType();
-          const amount = '0';
+          let amount = (amountEl.value || '1.00').trim();
+          if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
+            amount = '1.00';
+          }
           const currency = (currencyEl.value || 'USD').trim().toUpperCase();
 
           const res = await fetch(api('/api/v1/payments/cards/tokenize/init'), {
@@ -752,3 +755,4 @@
   </script>
 </body>
 </html>
+
