@@ -24,8 +24,8 @@
     }
     #pay-card-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
     #payment-result { display: none; white-space: pre-wrap; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; max-width: 900px; }
-    .align-end { align-self: end; }
-    .full-width { width: 100%; }
+    .error { color: #dc2626; }
+    .success { color: #16a34a; }
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -57,9 +57,6 @@
     .modal-panel form { display: flex; flex-direction: column; gap: 10px; }
     .st-inline { display: flex; gap: 10px; max-width: 420px; }
     .st-inline > div { flex: 1; max-width: none; }
-    .error { color: #dc2626; }
-    .success { color: #16a34a; }
-
   </style>
 </head>
 <body>
@@ -140,653 +137,634 @@
   <script>
     (function() {
       try {
-      const TEST_AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNTg3MzdiZDgtZmIxNC00ODVlLWFlNWUtMjVlYzBhMWY1OWFjIiwiZW1haWwiOiJtdXNodGFxYWxpbWFsaWsxMUBnbWFpbC5jb20iLCJpYXQiOjE3Nzc5MTUzMDgsImV4cCI6MTc3ODAwMTcwOH0.lBQOrAjse973tq1YTOC4_u4IVHH2SxuJUYjxkLKatb4";
+        const TEST_AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNTg3MzdiZDgtZmIxNC00ODVlLWFlNWUtMjVlYzBhMWY1OWFjIiwiZW1haWwiOiJtdXNodGFxYWxpbWFsaWsxMUBnbWFpbC5jb20iLCJpYXQiOjE3Nzc5MTUzMDgsImV4cCI6MTc3ODAwMTcwOH0.lBQOrAjse973tq1YTOC4_u4IVHH2SxuJUYjxkLKatb4";
 
-      const statusEl = document.getElementById('status');
-      const notificationFrame = document.getElementById('st-notification-frame');
-      const resultEl = document.getElementById('payment-result');
-      const amountEl = document.getElementById('amount');
-      const currencyEl = document.getElementById('currency');
-      const authTokenEl = document.getElementById('auth-token');
-      const ownerTypeEl = document.getElementById('owner-type');
-      const savedCardIdEl = document.getElementById('saved-card-id');
-      const initGoogleBtn = document.getElementById('init-google-btn');
-      const initAppleBtn = document.getElementById('init-apple-btn');
-      const initCardBtn = document.getElementById('init-card-btn');
-      const initCardTokenizeBtn = document.getElementById('init-card-tokenize-btn');
-      const initSavedCardPayBtn = document.getElementById('init-saved-card-pay-btn');
-      const payCardBtn = document.getElementById('pay-card-btn');
-      const formEl = document.getElementById('st-form');
-      const cardModalEl = document.getElementById('card-modal');
-      const cardModalTitleEl = document.getElementById('card-modal-title');
-      const cardModalCloseEl = document.getElementById('card-modal-close');
-      const paymentSessionIdEl = document.getElementById('payment-session-id');
-      const requestReferenceEl = document.getElementById('request-reference');
+        const statusEl = document.getElementById('status');
+        const notificationFrame = document.getElementById('st-notification-frame');
+        const resultEl = document.getElementById('payment-result');
+        const amountEl = document.getElementById('amount');
+        const currencyEl = document.getElementById('currency');
+        const authTokenEl = document.getElementById('auth-token');
+        const ownerTypeEl = document.getElementById('owner-type');
+        const savedCardIdEl = document.getElementById('saved-card-id');
+        const initGoogleBtn = document.getElementById('init-google-btn');
+        const initAppleBtn = document.getElementById('init-apple-btn');
+        const initCardBtn = document.getElementById('init-card-btn');
+        const initCardTokenizeBtn = document.getElementById('init-card-tokenize-btn');
+        const initSavedCardPayBtn = document.getElementById('init-saved-card-pay-btn');
+        const payCardBtn = document.getElementById('pay-card-btn');
+        const formEl = document.getElementById('st-form');
+        const cardModalEl = document.getElementById('card-modal');
+        const cardModalTitleEl = document.getElementById('card-modal-title');
+        const cardModalCloseEl = document.getElementById('card-modal-close');
+        const paymentSessionIdEl = document.getElementById('payment-session-id');
+        const requestReferenceEl = document.getElementById('request-reference');
 
-      const API_BASE_URL = (window.PAYMENT_API_BASE_URL || '').replace(/\/$/, '');
-      const DEBUG_APPLE_SITE = window.APPLE_PAY_SITE_REFERENCE || window.APPLE_PAY_MERCHANT_ID || '';
-      console.log('DEBUG: script loaded, API_BASE_URL=', API_BASE_URL, 'APPLE_PAY_SITE_REFERENCE=', DEBUG_APPLE_SITE);
-      console.log('DEBUG: buttons:', { initGoogleBtn, initAppleBtn, initCardBtn, initCardTokenizeBtn, initSavedCardPayBtn });
-      try { setStatus('DEBUG: API_BASE_URL=' + (API_BASE_URL || '<empty>') + ' | APPLE_PAY_SITE_REFERENCE=' + (DEBUG_APPLE_SITE || '<empty>')); } catch (e) {}
+        const API_BASE_URL = (window.PAYMENT_API_BASE_URL || '').replace(/\/$/, '');
+        const api = (path) => `${API_BASE_URL}${path}`;
+        let paymentSessionId = localStorage.getItem('paymentSessionId') || '';
+        let cardFlowMode = 'PAYMENT';
 
-      // Add simple click-debug listeners so clicks always log to console (helps when nothing appears to happen)
-      try {
-        if (initGoogleBtn) initGoogleBtn.addEventListener('click', () => console.log('DEBUG: initGoogleBtn clicked'));
-        if (initAppleBtn) initAppleBtn.addEventListener('click', () => console.log('DEBUG: initAppleBtn clicked'));
-        if (initCardBtn) initCardBtn.addEventListener('click', () => console.log('DEBUG: initCardBtn clicked'));
-        if (initCardTokenizeBtn) initCardTokenizeBtn.addEventListener('click', () => console.log('DEBUG: initCardTokenizeBtn clicked'));
-        if (initSavedCardPayBtn) initSavedCardPayBtn.addEventListener('click', () => console.log('DEBUG: initSavedCardPayBtn clicked'));
-      } catch (e) {
-        console.error('DEBUG: attaching click listeners failed', e);
-      }
-      const api = (path) => `${API_BASE_URL}${path}`;
-      let paymentSessionId = localStorage.getItem('paymentSessionId') || '';
-      let cardFlowMode = 'PAYMENT';
+        authTokenEl.value = window.PAYMENT_AUTH_TOKEN || TEST_AUTH_TOKEN;
+        ownerTypeEl.value = window.PAYMENT_OWNER_TYPE || ownerTypeEl.value || 'customer';
 
-      authTokenEl.value = window.PAYMENT_AUTH_TOKEN || TEST_AUTH_TOKEN;
-      ownerTypeEl.value = window.PAYMENT_OWNER_TYPE || ownerTypeEl.value || 'customer';
-
-      function formatErrorMessage(error) {
-        if (!error) return 'Unknown error';
-        if (typeof error === 'string') return error;
-        if (error.message) return error.message;
-        if (error.errorcode || error.errormessage) {
-          let text = error.errormessage || 'Payment request failed';
-          if (error.errorcode) text += ` (code: ${error.errorcode})`;
-          if (error.errordata?.length) text += ` - field: ${error.errordata.filter(Boolean).join(', ')}`;
-          return text;
-        }
-        try {
-          return JSON.stringify(error);
-        } catch {
-          return 'Unknown error';
-        }
-      }
-
-      function attachStLogging(st) {
-        try {
-          if (!st) return st;
-          if (typeof st.on === 'function') {
-            st.on('notification', (msg) => {
-              console.warn('ST notification event:', msg);
-              showOutcome(false, 'ST notification: ' + (msg && msg.message ? msg.message : msg), { source: 'st.notification', detail: msg });
-            });
-            st.on('error', (err) => {
-              console.error('ST error event:', err);
-              showOutcome(false, 'ST error: ' + formatErrorMessage(err), { source: 'st.error', detail: err });
-            });
+        function formatErrorMessage(error) {
+          if (!error) return 'Unknown error';
+          if (typeof error === 'string') return error;
+          if (error.message) return error.message;
+          if (error.errorcode || error.errormessage) {
+            let text = error.errormessage || 'Payment request failed';
+            if (error.errorcode) text += ` (code: ${error.errorcode})`;
+            if (error.errordata?.length) text += ` - field: ${error.errordata.filter(Boolean).join(', ')}`;
+            return text;
           }
-        } catch (e) {
-          console.error('attachStLogging failed', e);
-        }
-        return st;
-      }
-
-      function setStatus(message, type) {
-        statusEl.textContent = message;
-        statusEl.className = type || '';
-      }
-
-      function showOutcome(success, message, details = {}) {
-        setStatus(message, success ? 'success' : 'error');
-        if (Object.keys(details).length > 0) {
-          resultEl.style.display = 'block';
-          resultEl.textContent = JSON.stringify(details, null, 2);
-        }
-      }
-
-      function openCardModal(titleText) {
-        if (cardModalTitleEl && titleText) {
-          cardModalTitleEl.textContent = titleText;
-        }
-        if (cardModalEl) {
-          cardModalEl.classList.add('active');
-          cardModalEl.setAttribute('aria-hidden', 'false');
-        }
-      }
-
-      function closeCardModal() {
-        if (cardModalEl) {
-          cardModalEl.classList.remove('active');
-          cardModalEl.setAttribute('aria-hidden', 'true');
-        }
-      }
-
-      function getOwnerType() {
-        const requested = String(ownerTypeEl?.value || '').trim().toLowerCase();
-        if (requested === 'store') return 'store';
-        if (requested === 'customer' || requested === 'cust') return 'customer';
-        return 'customer';
-      }
-
-      function getAuthHeaders() {
-        const authToken = (authTokenEl.value || '').trim();
-        if (!authToken) {
-          throw new Error('Auth token is required');
-        }
-        return {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        };
-      }
-
-      async function verifyWithBackend(responseJwt) {
-        const verifyRes = await fetch(api('/api/v1/payments/response/verify'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jwt: responseJwt,
-            paymentSessionId,
-            requestReference: paymentSessionId
-          })
-        });
-        const payload = await verifyRes.json();
-        if (!verifyRes.ok || !payload.verified) {
-          throw new Error(payload.error || payload.message || 'Verification failed');
-        }
-        return payload;
-      }
-
-      async function createInitSession(paymentMethod) {
-        const amount = (amountEl.value || '').trim();
-        const currency = (currencyEl.value || '').trim().toUpperCase();
-        const authToken = (authTokenEl.value || '').trim();
-
-        const initRes = await fetch(api('/api/v1/payments/jwt/init'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount, currency, authToken, paymentMethod })
-        });
-
-        const initPayload = await initRes.json();
-        if (!initRes.ok || !initPayload.jwt || !initPayload.paymentSessionId) {
-          throw new Error(initPayload.error || `Init ${paymentMethod} failed`);
-        }
-
-        paymentSessionId = initPayload.paymentSessionId;
-        localStorage.setItem('paymentSessionId', paymentSessionId);
-        paymentSessionIdEl.value = paymentSessionId;
-        requestReferenceEl.value = paymentSessionId;
-
-        return initPayload;
-      }
-
-      async function handleGatewayQueryCallback() {
-        const query = new URLSearchParams(window.location.search);
-        const responseJwt = query.get('jwt');
-        const errorcode = query.get('errorcode');
-        const transactionreference = query.get('transactionreference');
-
-        if (!responseJwt && !errorcode && !transactionreference) return;
-
-        try {
-          if (!responseJwt) {
-            throw new Error(errorcode || 'No JWT returned from gateway');
+          try {
+            return JSON.stringify(error);
+          } catch {
+            return 'Unknown error';
           }
-          setStatus('Verifying callback with backend...');
-          const verified = await verifyWithBackend(responseJwt);
-          showOutcome(true, 'Wallet payment successful', { verified });
-          localStorage.removeItem('paymentSessionId');
-        } catch (error) {
-          showOutcome(false, 'Wallet payment failed: ' + formatErrorMessage(error), {
-            errorcode,
-            transactionreference,
-            error: formatErrorMessage(error)
+        }
+
+        function setStatus(message, type) {
+          statusEl.textContent = message;
+          statusEl.className = type || '';
+        }
+
+        function showOutcome(success, message, details = {}) {
+          setStatus(message, success ? 'success' : 'error');
+          if (Object.keys(details).length > 0) {
+            resultEl.style.display = 'block';
+            resultEl.textContent = JSON.stringify(details, null, 2);
+          }
+        }
+
+        function attachStLogging(st) {
+          try {
+            if (!st) return st;
+            if (typeof st.on === 'function') {
+              st.on('notification', (msg) => {
+                console.warn('ST notification event:', msg);
+                showOutcome(false, 'ST notification: ' + (msg && msg.message ? msg.message : msg), { source: 'st.notification', detail: msg });
+              });
+              st.on('error', (err) => {
+                console.error('ST error event:', err);
+                showOutcome(false, 'ST error: ' + formatErrorMessage(err), { source: 'st.error', detail: err });
+              });
+            }
+          } catch (e) {
+            console.error('attachStLogging failed', e);
+          }
+          return st;
+        }
+
+        function openCardModal(titleText) {
+          if (cardModalTitleEl && titleText) {
+            cardModalTitleEl.textContent = titleText;
+          }
+          if (cardModalEl) {
+            cardModalEl.classList.add('active');
+            cardModalEl.setAttribute('aria-hidden', 'false');
+          }
+        }
+
+        function closeCardModal() {
+          if (cardModalEl) {
+            cardModalEl.classList.remove('active');
+            cardModalEl.setAttribute('aria-hidden', 'true');
+          }
+        }
+
+        function getOwnerType() {
+          const requested = String(ownerTypeEl?.value || '').trim().toLowerCase();
+          if (requested === 'store') return 'store';
+          if (requested === 'customer' || requested === 'cust') return 'customer';
+          return 'customer';
+        }
+
+        function getAuthHeaders() {
+          const authToken = (authTokenEl.value || '').trim();
+          if (!authToken) {
+            throw new Error('Auth token is required');
+          }
+          return {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`
+          };
+        }
+
+        async function verifyWithBackend(responseJwt) {
+          const verifyRes = await fetch(api('/api/v1/payments/response/verify'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jwt: responseJwt,
+              paymentSessionId,
+              requestReference: paymentSessionId
+            })
           });
+          const payload = await verifyRes.json();
+          if (!verifyRes.ok || !payload.verified) {
+            throw new Error(payload.error || payload.message || 'Verification failed');
+          }
+          return payload;
         }
 
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
+        async function createInitSession(paymentMethod) {
+          const amount = (amountEl.value || '').trim();
+          const currency = (currencyEl.value || '').trim().toUpperCase();
+          const authToken = (authTokenEl.value || '').trim();
 
-      async function initGooglePay() {
-        try {
-          setStatus('Initializing Google Pay...');
-          const initPayload = await createInitSession('GOOGLEPAY');
-          const st = attachStLogging(SecureTrading({ jwt: initPayload.jwt, errorReporting: true }));
+          const initRes = await fetch(api('/api/v1/payments/jwt/init'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount, currency, authToken, paymentMethod })
+          });
 
-          const gpayInit = st.GooglePay({
-            buttonOptions: {
-              buttonRootNode: 'st-google-pay',
-              buttonType: 'pay',
-              buttonColor: 'black',
-              buttonLocale: 'en'
-            },
-            paymentRequest: {
-              environment: 'TEST',
-              merchantInfo: {
-                merchantId: 'BCR2DN5TZC6I563Y',
-                merchantName: 'RRoM International'
+          const initPayload = await initRes.json();
+          if (!initRes.ok || !initPayload.jwt || !initPayload.paymentSessionId) {
+            throw new Error(initPayload.error || `Init ${paymentMethod} failed`);
+          }
+
+          paymentSessionId = initPayload.paymentSessionId;
+          localStorage.setItem('paymentSessionId', paymentSessionId);
+          paymentSessionIdEl.value = paymentSessionId;
+          requestReferenceEl.value = paymentSessionId;
+
+          return initPayload;
+        }
+
+        async function handleGatewayQueryCallback() {
+          const query = new URLSearchParams(window.location.search);
+          const responseJwt = query.get('jwt');
+          const errorcode = query.get('errorcode');
+          const transactionreference = query.get('transactionreference');
+
+          if (!responseJwt && !errorcode && !transactionreference) return;
+
+          try {
+            if (!responseJwt) {
+              throw new Error(errorcode || 'No JWT returned from gateway');
+            }
+            setStatus('Verifying callback with backend...');
+            const verified = await verifyWithBackend(responseJwt);
+            showOutcome(true, 'Wallet payment successful', { verified });
+            localStorage.removeItem('paymentSessionId');
+          } catch (error) {
+            showOutcome(false, 'Wallet payment failed: ' + formatErrorMessage(error), {
+              errorcode,
+              transactionreference,
+              error: formatErrorMessage(error)
+            });
+          }
+
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        async function initGooglePay() {
+          try {
+            setStatus('Initializing Google Pay...');
+            const initPayload = await createInitSession('GOOGLEPAY');
+            const st = attachStLogging(SecureTrading({ jwt: initPayload.jwt, errorReporting: true }));
+
+            const gpayInit = st.GooglePay({
+              buttonOptions: {
+                buttonRootNode: 'st-google-pay',
+                buttonType: 'pay',
+                buttonColor: 'black',
+                buttonLocale: 'en'
               },
-              allowedPaymentMethods: [{
-                parameters: {
-                  allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
-                  allowedCardNetworks: ['VISA', 'MASTERCARD', 'AMEX']
+              paymentRequest: {
+                environment: 'TEST',
+                merchantInfo: {
+                  merchantId: 'BCR2DN5TZC6I563Y',
+                  merchantName: 'RRoM International'
+                },
+                allowedPaymentMethods: [{
+                  parameters: {
+                    allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
+                    allowedCardNetworks: ['VISA', 'MASTERCARD', 'AMEX']
+                  }
+                }],
+                transactionInfo: {
+                  countryCode: 'US',
+                  currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
+                  totalPriceStatus: 'FINAL',
+                  totalPrice: (amountEl.value || '10.00').trim()
                 }
-              }],
-              transactionInfo: {
-                countryCode: 'US',
+              }
+            });
+
+            if (gpayInit && typeof gpayInit.then === 'function') {
+              gpayInit.catch((err) => {
+                showOutcome(false, 'Google Pay init error: ' + formatErrorMessage(err), { source: 'GooglePay.init' });
+              });
+            }
+
+            showOutcome(true, 'Google Pay initialized', { init: initPayload });
+          } catch (error) {
+            showOutcome(false, 'Google Pay initialization failed: ' + formatErrorMessage(error), {
+              source: 'google-init'
+            });
+          }
+        }
+
+        async function initApplePay() {
+          try {
+            const appleSiteReference = window.APPLE_PAY_SITE_REFERENCE || window.APPLE_PAY_MERCHANT_ID || '';
+            const appleCountryCode = (window.APPLE_PAY_COUNTRY_CODE || 'US').trim().toUpperCase();
+            const applePayDiagnostics = document.getElementById('applepay-diagnostics');
+
+            function printApplePayDiagnostics() {
+              const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+              const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+              const applePaySupported = typeof window.ApplePaySession !== 'undefined';
+              const eligibility = applePaySupported ? 'Eligible' : 'ApplePaySession not available';
+              const diag = [
+                `User Agent: ${navigator.userAgent}`,
+                `Safari: ${isSafari}`,
+                `iOS: ${isIOS}`,
+                `ApplePaySession supported: ${applePaySupported}`,
+                `Eligibility: ${eligibility}`
+              ];
+              if (applePayDiagnostics) {
+                applePayDiagnostics.innerHTML = '<b>Apple Pay Diagnostics</b><br>' + diag.join('<br>');
+              }
+              console.log('Apple Pay Diagnostics:', diag);
+            }
+
+            printApplePayDiagnostics();
+
+            const hasApplePaySession = typeof window.ApplePaySession !== 'undefined';
+            const canMakePayments =
+              hasApplePaySession &&
+              typeof window.ApplePaySession.canMakePayments === 'function' &&
+              window.ApplePaySession.canMakePayments();
+            console.log('ApplePaySession:', hasApplePaySession, 'canMakePayments:', canMakePayments);
+
+            if (!window.isSecureContext) {
+              console.error('Apple Pay requires HTTPS (secure context).');
+              throw new Error('Apple Pay requires HTTPS (secure context).');
+            }
+
+            if (!hasApplePaySession || !canMakePayments) {
+              setStatus('Apple Pay may not be payable in this browser/device; attempting initialization for button visibility.', 'error');
+              console.warn('Apple Pay not payable:', { hasApplePaySession, canMakePayments });
+            }
+
+            if (!appleSiteReference) {
+              throw new Error('Apple Pay site reference missing. Set window.APPLE_PAY_SITE_REFERENCE in config.js');
+            }
+
+            setStatus('Initializing Apple Pay...');
+            const initPayload = await createInitSession('APPLEPAY');
+            console.log('Apple Pay JWT:', initPayload.jwt);
+            const st = attachStLogging(SecureTrading({ jwt: initPayload.jwt, errorReporting: true }));
+
+            if (typeof st.ApplePay !== 'function') {
+              console.error('st.js ApplePay() is not available in this version/config');
+              throw new Error('st.js ApplePay() is not available in this version/config');
+            }
+
+            const appleInit = st.ApplePay({
+              buttonStyle: 'black',
+              buttonText: 'plain',
+              merchantId: appleSiteReference,
+              paymentRequest: {
+                countryCode: appleCountryCode,
                 currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
-                totalPriceStatus: 'FINAL',
-                totalPrice: (amountEl.value || '10.00').trim()
-              }
-            }
-          });
+                merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
+                supportedNetworks: ['visa', 'masterCard', 'amex'],
+                requiredBillingContactFields: ['postalAddress'],
+                requiredShippingContactFields: ['postalAddress', 'name', 'phone', 'email'],
+                total: {
+                  label: 'DropN-Dash',
+                  amount: (amountEl.value || '10.00').trim()
+                }
+              },
+              buttonPlacement: 'st-apple-pay'
+            });
 
-          if (gpayInit && typeof gpayInit.then === 'function') {
-            gpayInit.catch((err) => {
-              showOutcome(false, 'Google Pay init error: ' + formatErrorMessage(err), { source: 'GooglePay.init' });
+            if (!appleInit) {
+              console.error('st.ApplePay() did not return an object');
+            }
+
+            if (appleInit && typeof appleInit.then === 'function') {
+              appleInit.catch((err) => {
+                showOutcome(false, 'Apple Pay init error: ' + formatErrorMessage(err), { source: 'ApplePay.init' });
+                console.error('Apple Pay init promise rejected:', err);
+              });
+            }
+
+            setTimeout(() => {
+              const container = document.getElementById('st-apple-pay');
+              console.log('Apple Pay container HTML:', container ? container.innerHTML : 'missing container');
+              if (container && !container.innerHTML.trim()) {
+                setStatus('Apple Pay button not rendered. Check domain verification and Trust config.', 'error');
+              }
+            }, 2000);
+
+            showOutcome(true, 'Apple Pay initialized', { init: initPayload });
+          } catch (error) {
+            showOutcome(false, 'Apple Pay initialization failed: ' + formatErrorMessage(error), {
+              source: 'apple-init'
+            });
+            console.error('Apple Pay initialization failed:', error);
+          }
+        }
+
+        async function initCard() {
+          try {
+            setStatus('Initializing card form...');
+            cardFlowMode = 'PAYMENT';
+            payCardBtn.textContent = 'Pay securely';
+            const initPayload = await createInitSession('CARD');
+
+            formEl.action = api(initPayload.processPath || '/api/v1/payments/card/process');
+            openCardModal('Pay by Card');
+
+            const st = attachStLogging(SecureTrading({
+              jwt: initPayload.jwt,
+              errorReporting: true,
+              submitOnSuccess: false,
+              submitOnError: false,
+              submitOnCancel: false,
+              submitCallback: async (data) => {
+                const responseJwt = data && (data.jwt || data.responsejwt || data.responseJwt);
+                if (!responseJwt) {
+                  showOutcome(false, 'Card payment failed: JWT missing in callback', { callback: data || null });
+                  return;
+                }
+                try {
+                  const verified = await verifyWithBackend(responseJwt);
+                  showOutcome(true, 'Card payment successful', { verified, callback: data });
+                  localStorage.removeItem('paymentSessionId');
+                  closeCardModal();
+                } catch (verifyErr) {
+                  showOutcome(false, 'Card payment verify failed: ' + formatErrorMessage(verifyErr), {
+                    callback: data,
+                    error: formatErrorMessage(verifyErr)
+                  });
+                }
+              },
+              components: {
+                callbacks: {
+                  onPaymentFormRendered() {
+                    setStatus('Card form ready', 'success');
+                  },
+                  onPaymentFormValidityChange(data) {
+                    payCardBtn.disabled = !(data && data.isFormValid);
+                  }
+                }
+              }
+            }));
+
+            st.Components();
+            showOutcome(true, 'Card initialized', { init: initPayload });
+          } catch (error) {
+            showOutcome(false, 'Card initialization failed: ' + formatErrorMessage(error), {
+              source: 'card-init'
             });
           }
-
-          showOutcome(true, 'Google Pay initialized', { init: initPayload });
-        } catch (error) {
-          showOutcome(false, 'Google Pay initialization failed: ' + formatErrorMessage(error), {
-            source: 'google-init'
-          });
         }
-      }
 
-      async function initApplePay() {
-        try {
-          const appleSiteReference = window.APPLE_PAY_SITE_REFERENCE || window.APPLE_PAY_MERCHANT_ID || '';
-          const appleCountryCode = (window.APPLE_PAY_COUNTRY_CODE || 'US').trim().toUpperCase();
-          // Apple Pay diagnostics panel
-          const applePayDiagnostics = document.getElementById('applepay-diagnostics');
-          function printApplePayDiagnostics() {
-            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-            const applePaySupported = typeof window.ApplePaySession !== 'undefined';
-            let eligibility = 'Unknown';
-            if (!applePaySupported) eligibility = 'ApplePaySession not available';
-            else eligibility = 'Eligible';
-            const diag = [
-              `User Agent: ${navigator.userAgent}`,
-              `Safari: ${isSafari}`,
-              `iOS: ${isIOS}`,
-              `ApplePaySession supported: ${applePaySupported}`,
-              `Eligibility: ${eligibility}`
-            ];
-            applePayDiagnostics.innerHTML = '<b>Apple Pay Diagnostics</b><br>' + diag.map(x => x).join('<br>');
-            console.log('Apple Pay Diagnostics:', diag);
-          }
-          printApplePayDiagnostics();
+        async function initCardTokenize() {
+          try {
+            setStatus('Initializing save-card form...');
+            cardFlowMode = 'TOKENIZE_ONLY';
+            payCardBtn.textContent = 'Save card token';
 
-          const hasApplePaySession = typeof window.ApplePaySession !== 'undefined';
-          const canMakePayments =
-            hasApplePaySession &&
-            typeof window.ApplePaySession.canMakePayments === 'function' &&
-            window.ApplePaySession.canMakePayments();
-          console.log('ApplePaySession:', hasApplePaySession, 'canMakePayments:', canMakePayments);
+            const ownerType = getOwnerType();
+            let amount = (amountEl.value || '1.00').trim();
+            if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
+              amount = '1.00';
+            }
+            const currency = (currencyEl.value || 'USD').trim().toUpperCase();
 
-          if (!window.isSecureContext) {
-            console.error('Apple Pay requires HTTPS (secure context).');
-            throw new Error('Apple Pay requires HTTPS (secure context).');
-          }
+            const res = await fetch(api('/api/v1/payments/cards/tokenize/init'), {
+              method: 'POST',
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ type: ownerType, amount, currency })
+            });
 
-          if (!hasApplePaySession || !canMakePayments) {
-            setStatus('Apple Pay may not be payable in this browser/device; attempting initialization for button visibility.', 'error');
-            console.warn('Apple Pay not payable:', { hasApplePaySession, canMakePayments });
-          }
+            const initPayload = await res.json();
+            if (!res.ok || !initPayload.success || !initPayload.jwt || !initPayload.paymentSessionId) {
+              throw new Error(initPayload.message || initPayload.error || 'Tokenize init failed');
+            }
 
-          if (!appleSiteReference) {
-            throw new Error('Apple Pay site reference missing. Set window.APPLE_PAY_SITE_REFERENCE in config.js');
-          }
+            paymentSessionId = initPayload.paymentSessionId;
+            localStorage.setItem('paymentSessionId', paymentSessionId);
+            paymentSessionIdEl.value = paymentSessionId;
+            requestReferenceEl.value = paymentSessionId;
 
-          setStatus('Initializing Apple Pay...');
-          const initPayload = await createInitSession('APPLEPAY');
-          console.log('Apple Pay JWT:', initPayload.jwt);
-          const st = attachStLogging(SecureTrading({ jwt: initPayload.jwt, errorReporting: true }));
+            formEl.action = api(initPayload.processPath || '/api/v1/payments/cards/tokenize/complete');
+            openCardModal('Save Card');
 
-          if (typeof st.ApplePay !== 'function') {
-            console.error('st.js ApplePay() is not available in this version/config');
-            throw new Error('st.js ApplePay() is not available in this version/config');
-          }
+            const st = attachStLogging(SecureTrading({
+              jwt: initPayload.jwt,
+              errorReporting: true,
+              submitOnSuccess: false,
+              submitOnError: false,
+              submitOnCancel: false,
+              submitCallback: async (data) => {
+                const responseJwt = data && (data.jwt || data.responsejwt || data.responseJwt);
+                if (!responseJwt) {
+                  showOutcome(false, 'Tokenization failed: JWT missing in callback', { callback: data || null });
+                  return;
+                }
 
-          const appleInit = st.ApplePay({
-            buttonStyle: 'black',
-            buttonText: 'plain',
-            // Trust Payments: use site reference (not Apple merchantId) after May 2024 changes
-            merchantId: appleSiteReference,
-            paymentRequest: {
-              countryCode: appleCountryCode,
-              currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
-              merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
-              supportedNetworks: ['visa', 'masterCard', 'amex'],
-              requiredBillingContactFields: ['postalAddress'],
-              requiredShippingContactFields: ['postalAddress', 'name', 'phone', 'email'],
-              total: {
-                label: 'DropN-Dash',
-                amount: (amountEl.value || '10.00').trim()
+                try {
+                  const completeRes = await fetch(api('/api/v1/payments/cards/tokenize/complete'), {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                      type: ownerType,
+                      jwt: responseJwt,
+                      paymentSessionId,
+                      isDefault: false
+                    })
+                  });
+                  const completeData = await completeRes.json();
+                  if (!completeRes.ok || !completeData.success) {
+                    throw new Error(completeData.message || completeData.error || 'Tokenize complete failed');
+                  }
+
+                  showOutcome(true, 'Card tokenized and saved successfully', completeData);
+                  closeCardModal();
+                } catch (completeErr) {
+                  showOutcome(false, 'Tokenize complete failed: ' + formatErrorMessage(completeErr), {
+                    callback: data,
+                    error: formatErrorMessage(completeErr)
+                  });
+                }
+              },
+              components: {
+                callbacks: {
+                  onPaymentFormRendered() {
+                    setStatus('Save-card form ready', 'success');
+                  },
+                  onPaymentFormValidityChange(data) {
+                    payCardBtn.disabled = !(data && data.isFormValid);
+                  }
+                }
               }
-            },
-            buttonPlacement: 'st-apple-pay'
-            // Optional alternate flow:
-            // merchantUrl: api('/api/v1/payments/applepay/process')
-          });
-          if (!appleInit) {
-            console.error('st.ApplePay() did not return an object');
-          }
+            }));
 
-          if (appleInit && typeof appleInit.then === 'function') {
-            appleInit.catch((err) => {
-              showOutcome(false, 'Apple Pay init error: ' + formatErrorMessage(err), { source: 'ApplePay.init' });
-              console.error('Apple Pay init promise rejected:', err);
+            st.Components();
+            showOutcome(true, 'Save-card tokenization initialized', { init: initPayload });
+          } catch (error) {
+            showOutcome(false, 'Tokenization init failed: ' + formatErrorMessage(error), {
+              source: 'tokenize-init'
             });
           }
-
-          setTimeout(() => {
-            const container = document.getElementById('st-apple-pay');
-            console.log('Apple Pay container HTML:', container.innerHTML);
-            if (!container.innerHTML.trim()) {
-              setStatus('?? Apple Pay button not rendered. Possible reasons:<br>� Merchant/domain not verified<br>� Trust Payments config issue<br>� Check console for errors', 'error');
-            }
-          }, 2000);
-
-          showOutcome(true, 'Apple Pay initialized', { init: initPayload });
-        } catch (error) {
-          showOutcome(false, 'Apple Pay initialization failed: ' + formatErrorMessage(error), {
-            source: 'apple-init'
-          });
-          console.error('Apple Pay initialization failed:', error);
         }
-      }
 
-      async function initCard() {
-        try {
-          setStatus('Initializing card form...');
-          cardFlowMode = 'PAYMENT';
-          payCardBtn.textContent = 'Pay securely';
-          const initPayload = await createInitSession('CARD');
+        async function initSavedCardPayment() {
+          try {
+            setStatus('Initializing saved-card payment...');
+            cardFlowMode = 'TOKENIZED_PAYMENT';
+            payCardBtn.textContent = 'Pay with saved card';
 
-          formEl.action = api(initPayload.processPath || '/api/v1/payments/card/process');
-          openCardModal('Pay by Card');
-
-          const st = attachStLogging(SecureTrading({
-            jwt: initPayload.jwt,
-            errorReporting: true,
-            submitOnSuccess: false,
-            submitOnError: false,
-            submitOnCancel: false,
-            submitCallback: async (data) => {
-              const responseJwt = data && (data.jwt || data.responsejwt || data.responseJwt);
-              if (!responseJwt) {
-                showOutcome(false, 'Card payment failed: JWT missing in callback', { callback: data || null });
-                return;
-              }
-              try {
-                const verified = await verifyWithBackend(responseJwt);
-                showOutcome(true, 'Card payment successful', { verified, callback: data });
-                localStorage.removeItem('paymentSessionId');
-                closeCardModal();
-              } catch (verifyErr) {
-                showOutcome(false, 'Card payment verify failed: ' + formatErrorMessage(verifyErr), {
-                  callback: data,
-                  error: formatErrorMessage(verifyErr)
-                });
-              }
-            },
-            components: {
-              callbacks: {
-                onPaymentFormRendered() {
-                  setStatus('Card form ready', 'success');
-                },
-                onPaymentFormValidityChange(data) {
-                  payCardBtn.disabled = !(data && data.isFormValid);
-                }
-              }
+            const ownerType = getOwnerType();
+            const cardId = Number.parseInt((savedCardIdEl?.value || '').trim(), 10);
+            if (!Number.isFinite(cardId) || cardId <= 0) {
+              throw new Error('Saved Card ID is required');
             }
-          });
 
-          st.Components();
-          showOutcome(true, 'Card initialized', { init: initPayload });
-        } catch (error) {
-          showOutcome(false, 'Card initialization failed: ' + formatErrorMessage(error), {
-            source: 'card-init'
-          });
+            let amount = (amountEl.value || '1.00').trim();
+            if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
+              amount = '1.00';
+            }
+            const currency = (currencyEl.value || 'USD').trim().toUpperCase();
+
+            const res = await fetch(api('/api/v1/payments/cards/charge/init'), {
+              method: 'POST',
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ type: ownerType, cardId, amount, currency })
+            });
+            const initPayload = await res.json();
+            if (!res.ok || !initPayload.success || !initPayload.jwt || !initPayload.paymentSessionId) {
+              throw new Error(initPayload.message || initPayload.error || 'Saved card init failed');
+            }
+
+            paymentSessionId = initPayload.paymentSessionId;
+            localStorage.setItem('paymentSessionId', paymentSessionId);
+            paymentSessionIdEl.value = paymentSessionId;
+            requestReferenceEl.value = paymentSessionId;
+
+            formEl.action = api(initPayload.processPath || '/api/v1/payments/cards/charge');
+            openCardModal('Pay with Saved Card');
+
+            const st = attachStLogging(SecureTrading({
+              jwt: initPayload.jwt,
+              fieldsToSubmit: ['securitycode'],
+              errorReporting: true,
+              submitOnSuccess: false,
+              submitOnError: false,
+              submitOnCancel: false,
+              submitCallback: async (data) => {
+                const responseJwt = data && (data.jwt || data.responsejwt || data.responseJwt);
+                if (!responseJwt) {
+                  showOutcome(false, 'Saved card payment failed: JWT missing in callback', { callback: data || null });
+                  return;
+                }
+
+                try {
+                  const chargeRes = await fetch(api('/api/v1/payments/cards/charge'), {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                      type: ownerType,
+                      cardId,
+                      jwt: responseJwt,
+                      paymentSessionId,
+                      requestReference: paymentSessionId
+                    })
+                  });
+                  const chargeData = await chargeRes.json();
+                  if (!chargeRes.ok || !(chargeData.success || chargeData.verified)) {
+                    throw new Error(chargeData.message || chargeData.error || 'Saved card charge failed');
+                  }
+
+                  showOutcome(true, 'Saved card payment successful', chargeData);
+                  localStorage.removeItem('paymentSessionId');
+                  closeCardModal();
+                } catch (chargeErr) {
+                  showOutcome(false, 'Saved card payment failed: ' + formatErrorMessage(chargeErr), {
+                    callback: data,
+                    error: formatErrorMessage(chargeErr)
+                  });
+                }
+              },
+              components: {
+                callbacks: {
+                  onPaymentFormRendered() {
+                    setStatus('Saved-card form ready', 'success');
+                  },
+                  onPaymentFormValidityChange(data) {
+                    payCardBtn.disabled = !(data && data.isFormValid);
+                  }
+                }
+              }
+            }));
+
+            st.Components();
+            showOutcome(true, 'Saved-card payment initialized', { init: initPayload });
+          } catch (error) {
+            showOutcome(false, 'Saved card init failed: ' + formatErrorMessage(error), {
+              source: 'saved-card-init'
+            });
+          }
         }
-      }
 
-      async function initCardTokenize() {
-        try {
-          setStatus('Initializing save-card form...');
-          cardFlowMode = 'TOKENIZE_ONLY';
-          payCardBtn.textContent = 'Save card token';
+        window.addEventListener('error', (event) => {
+          showOutcome(false, 'Error: ' + formatErrorMessage(event.error || event.message), { source: 'window.error' });
+        });
 
-          const ownerType = getOwnerType();
-          let amount = (amountEl.value || '1.00').trim();
-          if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
-            amount = '1.00';
-          }
-          const currency = (currencyEl.value || 'USD').trim().toUpperCase();
+        window.addEventListener('unhandledrejection', (event) => {
+          showOutcome(false, 'Error: ' + formatErrorMessage(event.reason), { source: 'unhandledrejection' });
+        });
 
-          const res = await fetch(api('/api/v1/payments/cards/tokenize/init'), {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({
-              type: ownerType,
-              amount,
-              currency
-            })
-          });
+        if (notificationFrame) {
+          new MutationObserver(() => {
+            const text = notificationFrame.textContent && notificationFrame.textContent.trim();
+            if (text) {
+              setStatus('ST Notification: ' + text);
+            }
+          }).observe(notificationFrame, { childList: true, subtree: true, characterData: true });
+        }
 
-          const initPayload = await res.json();
-          if (!res.ok || !initPayload.success || !initPayload.jwt || !initPayload.paymentSessionId) {
-            throw new Error(initPayload.message || initPayload.error || 'Tokenize init failed');
-          }
+        if (!API_BASE_URL) {
+          setStatus('Set window.PAYMENT_API_BASE_URL in config.js', 'error');
+          return;
+        }
 
-          paymentSessionId = initPayload.paymentSessionId;
-          localStorage.setItem('paymentSessionId', paymentSessionId);
-          paymentSessionIdEl.value = paymentSessionId;
-          requestReferenceEl.value = paymentSessionId;
-
-          formEl.action = api(initPayload.processPath || '/api/v1/payments/cards/tokenize/complete');
-          openCardModal('Save Card');
-
-          const st = attachStLogging(SecureTrading({
-            jwt: initPayload.jwt,
-            errorReporting: true,
-            submitOnSuccess: false,
-            submitOnError: false,
-            submitOnCancel: false,
-            submitCallback: async (data) => {
-              const responseJwt = data && (data.jwt || data.responsejwt || data.responseJwt);
-              if (!responseJwt) {
-                showOutcome(false, 'Tokenization failed: JWT missing in callback', { callback: data || null });
-                return;
-              }
-
-              try {
-                const completeRes = await fetch(api('/api/v1/payments/cards/tokenize/complete'), {
-                  method: 'POST',
-                  headers: getAuthHeaders(),
-                  body: JSON.stringify({
-                    type: ownerType,
-                    jwt: responseJwt,
-                    paymentSessionId,
-                    isDefault: false
-                  })
-                });
-                const completeData = await completeRes.json();
-                if (!completeRes.ok || !completeData.success) {
-                  throw new Error(completeData.message || completeData.error || 'Tokenize complete failed');
-                }
-
-                showOutcome(true, 'Card tokenized and saved successfully', completeData);
-                closeCardModal();
-              } catch (completeErr) {
-                showOutcome(false, 'Tokenize complete failed: ' + formatErrorMessage(completeErr), {
-                  callback: data,
-                  error: formatErrorMessage(completeErr)
-                });
-              }
-            },
-            components: {
-              callbacks: {
-                onPaymentFormRendered() {
-                  setStatus('Save-card form ready', 'success');
-                },
-                onPaymentFormValidityChange(data) {
-                  payCardBtn.disabled = !(data && data.isFormValid);
-                }
-              }
+        handleGatewayQueryCallback();
+        if (cardModalCloseEl) {
+          cardModalCloseEl.addEventListener('click', closeCardModal);
+        }
+        if (cardModalEl) {
+          cardModalEl.addEventListener('click', (event) => {
+            if (event.target === cardModalEl) {
+              closeCardModal();
             }
           });
-
-          st.Components();
-          showOutcome(true, 'Save-card tokenization initialized', { init: initPayload });
-        } catch (error) {
-          showOutcome(false, 'Tokenization init failed: ' + formatErrorMessage(error), {
-            source: 'tokenize-init'
-          });
         }
-      }
-
-      async function initSavedCardPayment() {
-        try {
-          setStatus('Initializing saved-card payment...');
-          cardFlowMode = 'TOKENIZED_PAYMENT';
-          payCardBtn.textContent = 'Pay with saved card';
-
-          const ownerType = getOwnerType();
-          const cardId = Number.parseInt((savedCardIdEl?.value || '').trim(), 10);
-          if (!Number.isFinite(cardId) || cardId <= 0) {
-            throw new Error('Saved Card ID is required');
-          }
-
-          let amount = (amountEl.value || '1.00').trim();
-          if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
-            amount = '1.00';
-          }
-          const currency = (currencyEl.value || 'USD').trim().toUpperCase();
-
-          const res = await fetch(api('/api/v1/payments/cards/charge/init'), {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({
-              type: ownerType,
-              cardId,
-              amount,
-              currency
-            })
-          });
-          const initPayload = await res.json();
-          if (!res.ok || !initPayload.success || !initPayload.jwt || !initPayload.paymentSessionId) {
-            throw new Error(initPayload.message || initPayload.error || 'Saved card init failed');
-          }
-
-          paymentSessionId = initPayload.paymentSessionId;
-          localStorage.setItem('paymentSessionId', paymentSessionId);
-          paymentSessionIdEl.value = paymentSessionId;
-          requestReferenceEl.value = paymentSessionId;
-
-          formEl.action = api(initPayload.processPath || '/api/v1/payments/cards/charge');
-          openCardModal('Pay with Saved Card');
-
-          const st = attachStLogging(SecureTrading({
-            jwt: initPayload.jwt,
-            fieldsToSubmit: ['securitycode'],
-            errorReporting: true,
-            submitOnSuccess: false,
-            submitOnError: false,
-            submitOnCancel: false,
-            submitCallback: async (data) => {
-              const responseJwt = data && (data.jwt || data.responsejwt || data.responseJwt);
-              if (!responseJwt) {
-                showOutcome(false, 'Saved card payment failed: JWT missing in callback', { callback: data || null });
-                return;
-              }
-
-              try {
-                const chargeRes = await fetch(api('/api/v1/payments/cards/charge'), {
-                  method: 'POST',
-                  headers: getAuthHeaders(),
-                  body: JSON.stringify({
-                    type: ownerType,
-                    cardId,
-                    jwt: responseJwt,
-                    paymentSessionId,
-                    requestReference: paymentSessionId
-                  })
-                });
-                const chargeData = await chargeRes.json();
-                if (!chargeRes.ok || !(chargeData.success || chargeData.verified)) {
-                  throw new Error(chargeData.message || chargeData.error || 'Saved card charge failed');
-                }
-
-                showOutcome(true, 'Saved card payment successful', chargeData);
-                localStorage.removeItem('paymentSessionId');
-                closeCardModal();
-              } catch (chargeErr) {
-                showOutcome(false, 'Saved card payment failed: ' + formatErrorMessage(chargeErr), {
-                  callback: data,
-                  error: formatErrorMessage(chargeErr)
-                });
-              }
-            },
-            components: {
-              callbacks: {
-                onPaymentFormRendered() {
-                  setStatus('Saved-card form ready', 'success');
-                },
-                onPaymentFormValidityChange(data) {
-                  payCardBtn.disabled = !(data && data.isFormValid);
-                }
-              }
-            }
-          });
-
-          st.Components();
-          showOutcome(true, 'Saved-card payment initialized', { init: initPayload });
-        } catch (error) {
-          showOutcome(false, 'Saved card init failed: ' + formatErrorMessage(error), {
-            source: 'saved-card-init'
-          });
-        }
-      }
-
-      window.addEventListener('error', (event) => {
-        showOutcome(false, 'Error: ' + formatErrorMessage(event.error || event.message), { source: 'window.error' });
-      });
-
-      window.addEventListener('unhandledrejection', (event) => {
-        showOutcome(false, 'Error: ' + formatErrorMessage(event.reason), { source: 'unhandledrejection' });
-      });
-
-      if (notificationFrame) {
-        new MutationObserver(() => {
-          const text = notificationFrame.textContent && notificationFrame.textContent.trim();
-          if (text) {
-            setStatus('ST Notification: ' + text);
-          }
-        }).observe(notificationFrame, { childList: true, subtree: true, characterData: true });
-      }
-
-      if (!API_BASE_URL) {
-        setStatus('Set window.PAYMENT_API_BASE_URL in config.js', 'error');
-        return;
-      }
-
-      handleGatewayQueryCallback();
-      if (cardModalCloseEl) {
-        cardModalCloseEl.addEventListener('click', closeCardModal);
-      }
-      if (cardModalEl) {
-        cardModalEl.addEventListener('click', (event) => {
-          if (event.target === cardModalEl) {
+        window.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') {
             closeCardModal();
           }
         });
-      }
-      window.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-          closeCardModal();
-        }
-      });
-      initGoogleBtn.addEventListener('click', initGooglePay);
-      initAppleBtn.addEventListener('click', initApplePay);
-      initCardBtn.addEventListener('click', initCard);
-      initCardTokenizeBtn.addEventListener('click', initCardTokenize);
-      initSavedCardPayBtn.addEventListener('click', initSavedCardPayment);
+        initGoogleBtn.addEventListener('click', initGooglePay);
+        initAppleBtn.addEventListener('click', initApplePay);
+        initCardBtn.addEventListener('click', initCard);
+        initCardTokenizeBtn.addEventListener('click', initCardTokenize);
+        initSavedCardPayBtn.addEventListener('click', initSavedCardPayment);
+
+        console.log('DEBUG: payment page loaded', {
+          apiBaseUrl: API_BASE_URL,
+          applePaySiteReference: window.APPLE_PAY_SITE_REFERENCE || window.APPLE_PAY_MERCHANT_ID || ''
+        });
+        setStatus('Idle');
       } catch (e) {
         console.error('Frontend init error:', e);
         document.body.innerHTML = '<pre style="white-space:pre-wrap">Frontend script error:\n' + (e && e.stack ? e.stack : String(e)) + '</pre>';
@@ -795,4 +773,3 @@
   </script>
 </body>
 </html>
-
