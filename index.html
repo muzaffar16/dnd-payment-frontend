@@ -354,6 +354,7 @@
       async function initApplePay() {
         try {
           const appleSiteReference = window.APPLE_PAY_SITE_REFERENCE || window.APPLE_PAY_MERCHANT_ID || '';
+          const appleCountryCode = (window.APPLE_PAY_COUNTRY_CODE || 'US').trim().toUpperCase();
           // Apple Pay diagnostics panel
           const applePayDiagnostics = document.getElementById('applepay-diagnostics');
           function printApplePayDiagnostics() {
@@ -412,7 +413,7 @@
             // Trust Payments: use site reference (not Apple merchantId) after May 2024 changes
             merchantId: appleSiteReference,
             paymentRequest: {
-              countryCode: (currencyEl.value || 'USD').trim().toUpperCase(),
+              countryCode: appleCountryCode,
               currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
               merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
               supportedNetworks: ['visa', 'masterCard', 'amex'],
@@ -442,7 +443,7 @@
             const container = document.getElementById('st-apple-pay');
             console.log('Apple Pay container HTML:', container.innerHTML);
             if (!container.innerHTML.trim()) {
-              setStatus('?? Apple Pay button not rendered. Possible reasons:<br>• Merchant/domain not verified<br>• Trust Payments config issue<br>• Check console for errors', 'error');
+              setStatus('?? Apple Pay button not rendered. Possible reasons:<br>ï¿½ Merchant/domain not verified<br>ï¿½ Trust Payments config issue<br>ï¿½ Check console for errors', 'error');
             }
           }, 2000);
 
