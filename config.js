@@ -1,7 +1,7 @@
 ﻿window.PAYMENT_API_BASE_URL = 'https://payment-service.dropndash.co.uk';
 // Trust Payments (May 2024+): use your SITE REFERENCE here, not Apple merchantId
 window.APPLE_PAY_SITE_REFERENCE = 'test_rrominternational130858';
-window.APPLE_PAY_COUNTRY_CODE = 'GB';
+window.APPLE_PAY_COUNTRY_CODE = 'US';
 
 
 
