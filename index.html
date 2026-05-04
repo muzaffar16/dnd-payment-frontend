@@ -187,6 +187,25 @@
         }
       }
 
+      function attachStLogging(st) {
+        try {
+          if (!st) return st;
+          if (typeof st.on === 'function') {
+            st.on('notification', (msg) => {
+              console.warn('ST notification event:', msg);
+              showOutcome(false, 'ST notification: ' + (msg && msg.message ? msg.message : msg), { source: 'st.notification', detail: msg });
+            });
+            st.on('error', (err) => {
+              console.error('ST error event:', err);
+              showOutcome(false, 'ST error: ' + formatErrorMessage(err), { source: 'st.error', detail: err });
+            });
+          }
+        } catch (e) {
+          console.error('attachStLogging failed', e);
+        }
+        return st;
+      }
+
       function setStatus(message, type) {
         statusEl.textContent = message;
         statusEl.className = type || '';
@@ -307,7 +326,7 @@
         try {
           setStatus('Initializing Google Pay...');
           const initPayload = await createInitSession('GOOGLEPAY');
-          const st = SecureTrading({ jwt: initPayload.jwt, errorReporting: true });
+          const st = attachStLogging(SecureTrading({ jwt: initPayload.jwt, errorReporting: true }));
 
           const gpayInit = st.GooglePay({
             buttonOptions: {
@@ -400,7 +419,7 @@
           setStatus('Initializing Apple Pay...');
           const initPayload = await createInitSession('APPLEPAY');
           console.log('Apple Pay JWT:', initPayload.jwt);
-          const st = SecureTrading({ jwt: initPayload.jwt, errorReporting: true });
+          const st = attachStLogging(SecureTrading({ jwt: initPayload.jwt, errorReporting: true }));
 
           if (typeof st.ApplePay !== 'function') {
             console.error('st.js ApplePay() is not available in this version/config');
@@ -466,7 +485,7 @@
           formEl.action = api(initPayload.processPath || '/api/v1/payments/card/process');
           openCardModal('Pay by Card');
 
-          const st = SecureTrading({
+          const st = attachStLogging(SecureTrading({
             jwt: initPayload.jwt,
             errorReporting: true,
             submitOnSuccess: false,
@@ -547,7 +566,7 @@
           formEl.action = api(initPayload.processPath || '/api/v1/payments/cards/tokenize/complete');
           openCardModal('Save Card');
 
-          const st = SecureTrading({
+          const st = attachStLogging(SecureTrading({
             jwt: initPayload.jwt,
             errorReporting: true,
             submitOnSuccess: false,
@@ -647,7 +666,7 @@
           formEl.action = api(initPayload.processPath || '/api/v1/payments/cards/charge');
           openCardModal('Pay with Saved Card');
 
-          const st = SecureTrading({
+          const st = attachStLogging(SecureTrading({
             jwt: initPayload.jwt,
             fieldsToSubmit: ['securitycode'],
             errorReporting: true,
