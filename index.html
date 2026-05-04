@@ -139,7 +139,8 @@
   <script src="https://cdn.eu.trustpayments.com/js/latest/st.js"></script>
   <script>
     (function() {
-      const TEST_AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJlbWFpbCI6ImpvaG4uZG9lQGV4YW1wbGUuY29tIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NzMzNTMyODQsImV4cCI6MTc3MzQzOTY4NH0.qQXbyp9jfJkNvkCLxO2vFDdCSQQMjAy3s8hB4CcZrZ0";
+      try {
+      const TEST_AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNTg3MzdiZDgtZmIxNC00ODVlLWFlNWUtMjVlYzBhMWY1OWFjIiwiZW1haWwiOiJtdXNodGFxYWxpbWFsaWsxMUBnbWFpbC5jb20iLCJpYXQiOjE3Nzc5MTUzMDgsImV4cCI6MTc3ODAwMTcwOH0.lBQOrAjse973tq1YTOC4_u4IVHH2SxuJUYjxkLKatb4";
 
       const statusEl = document.getElementById('status');
       const notificationFrame = document.getElementById('st-notification-frame');
@@ -771,6 +772,10 @@
       initCardBtn.addEventListener('click', initCard);
       initCardTokenizeBtn.addEventListener('click', initCardTokenize);
       initSavedCardPayBtn.addEventListener('click', initSavedCardPayment);
+      } catch (e) {
+        console.error('Frontend init error:', e);
+        document.body.innerHTML = '<pre style="white-space:pre-wrap">Frontend script error:\n' + (e && e.stack ? e.stack : String(e)) + '</pre>';
+      }
     })();
   </script>
 </body>
