@@ -164,6 +164,9 @@
       const requestReferenceEl = document.getElementById('request-reference');
 
       const API_BASE_URL = (window.PAYMENT_API_BASE_URL || '').replace(/\/$/, '');
+      const DEBUG_APPLE_SITE = window.APPLE_PAY_SITE_REFERENCE || window.APPLE_PAY_MERCHANT_ID || '';
+      console.log('DEBUG: API_BASE_URL=', API_BASE_URL, 'APPLE_PAY_SITE_REFERENCE=', DEBUG_APPLE_SITE);
+      try { setStatus('DEBUG: API_BASE_URL=' + (API_BASE_URL || '<empty>') + ' | APPLE_PAY_SITE_REFERENCE=' + (DEBUG_APPLE_SITE || '<empty>')); } catch (e) {}
       const api = (path) => `${API_BASE_URL}${path}`;
       let paymentSessionId = localStorage.getItem('paymentSessionId') || '';
       let cardFlowMode = 'PAYMENT';
