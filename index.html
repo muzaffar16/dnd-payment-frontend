@@ -371,66 +371,22 @@
         async function initApplePay() {
           try {
             const appleSiteReference = window.APPLE_PAY_SITE_REFERENCE || window.APPLE_PAY_MERCHANT_ID || '';
-            const appleCountryCode = (window.APPLE_PAY_COUNTRY_CODE || 'US').trim().toUpperCase();
-            const applePayDiagnostics = document.getElementById('applepay-diagnostics');
-
-            function printApplePayDiagnostics() {
-              const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-              const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-              const applePaySupported = typeof window.ApplePaySession !== 'undefined';
-              const eligibility = applePaySupported ? 'Eligible' : 'ApplePaySession not available';
-              const diag = [
-                `User Agent: ${navigator.userAgent}`,
-                `Safari: ${isSafari}`,
-                `iOS: ${isIOS}`,
-                `ApplePaySession supported: ${applePaySupported}`,
-                `Eligibility: ${eligibility}`
-              ];
-              if (applePayDiagnostics) {
-                applePayDiagnostics.innerHTML = '<b>Apple Pay Diagnostics</b><br>' + diag.join('<br>');
-              }
-              console.log('Apple Pay Diagnostics:', diag);
-            }
-
-            printApplePayDiagnostics();
-
-            const hasApplePaySession = typeof window.ApplePaySession !== 'undefined';
-            const canMakePayments =
-              hasApplePaySession &&
-              typeof window.ApplePaySession.canMakePayments === 'function' &&
-              window.ApplePaySession.canMakePayments();
-            console.log('ApplePaySession:', hasApplePaySession, 'canMakePayments:', canMakePayments);
-
-            if (!window.isSecureContext) {
-              console.error('Apple Pay requires HTTPS (secure context).');
-              throw new Error('Apple Pay requires HTTPS (secure context).');
-            }
-
-            if (!hasApplePaySession || !canMakePayments) {
-              setStatus('Apple Pay may not be payable in this browser/device; attempting initialization for button visibility.', 'error');
-              console.warn('Apple Pay not payable:', { hasApplePaySession, canMakePayments });
-            }
-
             if (!appleSiteReference) {
               throw new Error('Apple Pay site reference missing. Set window.APPLE_PAY_SITE_REFERENCE in config.js');
             }
 
             setStatus('Initializing Apple Pay...');
             const initPayload = await createInitSession('APPLEPAY');
-            console.log('Apple Pay JWT:', initPayload.jwt);
-            const st = attachStLogging(SecureTrading({ jwt: initPayload.jwt, errorReporting: true }));
+            const st = SecureTrading({
+              jwt: initPayload.jwt
+            });
 
-            if (typeof st.ApplePay !== 'function') {
-              console.error('st.js ApplePay() is not available in this version/config');
-              throw new Error('st.js ApplePay() is not available in this version/config');
-            }
-
-            const appleInit = st.ApplePay({
-              buttonStyle: 'black',
+            st.ApplePay({
+              buttonStyle: 'white-outline',
               buttonText: 'plain',
               merchantId: appleSiteReference,
               paymentRequest: {
-                countryCode: appleCountryCode,
+                countryCode: 'US',
                 currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
                 merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
                 supportedNetworks: ['visa', 'masterCard', 'amex'],
@@ -444,31 +400,11 @@
               buttonPlacement: 'st-apple-pay'
             });
 
-            if (!appleInit) {
-              console.error('st.ApplePay() did not return an object');
-            }
-
-            if (appleInit && typeof appleInit.then === 'function') {
-              appleInit.catch((err) => {
-                showOutcome(false, 'Apple Pay init error: ' + formatErrorMessage(err), { source: 'ApplePay.init' });
-                console.error('Apple Pay init promise rejected:', err);
-              });
-            }
-
-            setTimeout(() => {
-              const container = document.getElementById('st-apple-pay');
-              console.log('Apple Pay container HTML:', container ? container.innerHTML : 'missing container');
-              if (container && !container.innerHTML.trim()) {
-                setStatus('Apple Pay button not rendered. Check domain verification and Trust config.', 'error');
-              }
-            }, 2000);
-
             showOutcome(true, 'Apple Pay initialized', { init: initPayload });
           } catch (error) {
             showOutcome(false, 'Apple Pay initialization failed: ' + formatErrorMessage(error), {
               source: 'apple-init'
             });
-            console.error('Apple Pay initialization failed:', error);
           }
         }
 
