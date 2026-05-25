@@ -316,6 +316,13 @@
           return n.toFixed(2);
         }
 
+        function normalizeAppleCountryCode(input) {
+          const raw = String(input || '').trim().toUpperCase();
+          if (!raw) return 'US';
+          if (raw === 'UK') return 'GB';
+          return raw;
+        }
+
         async function verifyWithBackend(responseJwt) {
           const verifyRes = await fetch(api('/api/v1/payments/response/verify'), {
             method: 'POST',
@@ -436,7 +443,7 @@
           try {
             const appleWalletMerchantId = String(window.APPLE_PAY_MERCHANT_ID || '').trim();
             const appleSiteReference = String(window.APPLE_PAY_SITE_REFERENCE || '').trim();
-            const appleCountryCode = String(window.APPLE_PAY_COUNTRY_CODE || 'US').trim().toUpperCase();
+            const appleCountryCode = normalizeAppleCountryCode(window.APPLE_PAY_COUNTRY_CODE || 'US');
             const normalizedAmount = normalizeMoneyAmount(amountEl.value);
             if (!appleSiteReference) {
               const msg = 'Apple Pay site reference missing. Set window.APPLE_PAY_SITE_REFERENCE in config.js';
@@ -444,8 +451,12 @@
               showOutcome(false, msg, { source: 'apple-init-config' });
               return;
             }
-            if (!appleWalletMerchantId || !/^merchant\.[A-Za-z0-9.-]+$/.test(appleWalletMerchantId)) {
-              const msg = 'Apple wallet merchant id is invalid. Set window.APPLE_PAY_MERCHANT_ID (e.g. merchant.com.yourdomain) in config.js';
+            if (
+              !appleWalletMerchantId ||
+              !/^merchant\.[A-Za-z0-9.-]+$/.test(appleWalletMerchantId) ||
+              /(^merchant\.com\.example$|\.example($|\.)|example)/i.test(appleWalletMerchantId)
+            ) {
+              const msg = 'Apple wallet merchant id is invalid. Use your real Apple-registered merchant id (not merchant.com.example).';
               pushAppleDiagnostic('applepay.config.error', { msg, appleWalletMerchantId });
               showOutcome(false, msg, { source: 'apple-init-config', appleWalletMerchantId });
               return;
