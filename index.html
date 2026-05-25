@@ -199,16 +199,45 @@
           }
         }
 
+        let isLoggingAppleDiagnostic = false;
+
+        function safeStringify(value) {
+          try {
+            const seen = new WeakSet();
+            return JSON.stringify(value, (key, val) => {
+              if (typeof val === 'object' && val !== null) {
+                if (seen.has(val)) return '[Circular]';
+                seen.add(val);
+              }
+              if (typeof val === 'function') return '[Function]';
+              return val;
+            }, 2);
+          } catch {
+            return String(value);
+          }
+        }
+
         function pushAppleDiagnostic(label, payload) {
+          if (isLoggingAppleDiagnostic) return;
+          isLoggingAppleDiagnostic = true;
           const entry = {
             ts: new Date().toISOString(),
             label,
             payload
           };
-          console.log('[ApplePayDiag]', entry);
-          if (!appleDiagEl) return;
-          const text = `${entry.ts} ${label}\n${typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2)}\n\n`;
-          appleDiagEl.textContent = (text + (appleDiagEl.textContent || '')).slice(0, 12000);
+          try {
+            console.log('[ApplePayDiag]', entry);
+            if (!appleDiagEl) return;
+            const body = typeof payload === 'string' ? payload : safeStringify(payload);
+            const text = `${entry.ts} ${label}\n${body}\n\n`;
+            appleDiagEl.textContent = (text + (appleDiagEl.textContent || '')).slice(0, 12000);
+          } catch (diagErr) {
+            try {
+              console.error('Apple diag logging failed', diagErr);
+            } catch {}
+          } finally {
+            isLoggingAppleDiagnostic = false;
+          }
         }
 
         function decodeJwtUnsafe(token) {
