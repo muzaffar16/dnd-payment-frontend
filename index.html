@@ -252,6 +252,14 @@
           };
         }
 
+        function normalizeMoneyAmount(input) {
+          const n = Number(String(input || '').trim());
+          if (!Number.isFinite(n) || n <= 0) {
+            throw new Error('Amount must be a positive number');
+          }
+          return n.toFixed(2);
+        }
+
         async function verifyWithBackend(responseJwt) {
           const verifyRes = await fetch(api('/api/v1/payments/response/verify'), {
             method: 'POST',
@@ -270,7 +278,7 @@
         }
 
         async function createInitSession(paymentMethod) {
-          const amount = (amountEl.value || '').trim();
+          const amount = normalizeMoneyAmount(amountEl.value);
           const currency = (currencyEl.value || '').trim().toUpperCase();
           const authToken = (authTokenEl.value || '').trim();
 
@@ -371,6 +379,8 @@
         async function initApplePay() {
           try {
             const appleSiteReference = window.APPLE_PAY_SITE_REFERENCE || window.APPLE_PAY_MERCHANT_ID || '';
+            const appleCountryCode = String(window.APPLE_PAY_COUNTRY_CODE || 'US').trim().toUpperCase();
+            const normalizedAmount = normalizeMoneyAmount(amountEl.value);
             if (!appleSiteReference) {
               throw new Error('Apple Pay site reference missing. Set window.APPLE_PAY_SITE_REFERENCE in config.js');
             }
@@ -386,7 +396,7 @@
               buttonText: 'plain',
               merchantId: appleSiteReference,
               paymentRequest: {
-                countryCode: 'US',
+                countryCode: appleCountryCode,
                 currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
                 merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
                 supportedNetworks: ['visa', 'masterCard', 'amex'],
@@ -394,7 +404,7 @@
                 requiredShippingContactFields: ['postalAddress', 'name', 'phone', 'email'],
                 total: {
                   label: 'DropN-Dash',
-                  amount: (amountEl.value || '10.00').trim()
+                  amount: normalizedAmount
                 }
               },
               buttonPlacement: 'st-apple-pay'
