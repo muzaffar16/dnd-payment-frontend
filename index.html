@@ -439,10 +439,16 @@
             const appleCountryCode = String(window.APPLE_PAY_COUNTRY_CODE || 'US').trim().toUpperCase();
             const normalizedAmount = normalizeMoneyAmount(amountEl.value);
             if (!appleSiteReference) {
-              throw new Error('Apple Pay site reference missing. Set window.APPLE_PAY_SITE_REFERENCE in config.js');
+              const msg = 'Apple Pay site reference missing. Set window.APPLE_PAY_SITE_REFERENCE in config.js';
+              pushAppleDiagnostic('applepay.config.error', { msg });
+              showOutcome(false, msg, { source: 'apple-init-config' });
+              return;
             }
             if (!appleWalletMerchantId || !/^merchant\.[A-Za-z0-9.-]+$/.test(appleWalletMerchantId)) {
-              throw new Error('Apple wallet merchant id is invalid. Set window.APPLE_PAY_MERCHANT_ID (e.g. merchant.com.yourdomain) in config.js');
+              const msg = 'Apple wallet merchant id is invalid. Set window.APPLE_PAY_MERCHANT_ID (e.g. merchant.com.yourdomain) in config.js';
+              pushAppleDiagnostic('applepay.config.error', { msg, appleWalletMerchantId });
+              showOutcome(false, msg, { source: 'apple-init-config', appleWalletMerchantId });
+              return;
             }
 
             setStatus('Initializing Apple Pay...');
@@ -750,8 +756,16 @@
         }
 
         window.addEventListener('error', (event) => {
-          pushAppleDiagnostic('window.error', event.error || event.message || null);
-          showOutcome(false, 'Error: ' + formatErrorMessage(event.error || event.message), { source: 'window.error' });
+          const detail = {
+            message: event?.message || null,
+            filename: event?.filename || null,
+            lineno: event?.lineno || null,
+            colno: event?.colno || null,
+            stack: event?.error?.stack || null,
+            error: event?.error || null
+          };
+          pushAppleDiagnostic('window.error', detail);
+          showOutcome(false, 'Error: ' + formatErrorMessage(event.error || event.message), { source: 'window.error', detail });
         });
 
         window.addEventListener('unhandledrejection', (event) => {
