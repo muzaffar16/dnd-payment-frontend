@@ -159,6 +159,7 @@
         const cardModalCloseEl = document.getElementById('card-modal-close');
         const paymentSessionIdEl = document.getElementById('payment-session-id');
         const requestReferenceEl = document.getElementById('request-reference');
+        const appleDiagEl = document.getElementById('applepay-diagnostics');
 
         const API_BASE_URL = (window.PAYMENT_API_BASE_URL || '').replace(/\/$/, '');
         const api = (path) => `${API_BASE_URL}${path}`;
@@ -198,16 +199,42 @@
           }
         }
 
+        function pushAppleDiagnostic(label, payload) {
+          const entry = {
+            ts: new Date().toISOString(),
+            label,
+            payload
+          };
+          console.log('[ApplePayDiag]', entry);
+          if (!appleDiagEl) return;
+          const text = `${entry.ts} ${label}\n${typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2)}\n\n`;
+          appleDiagEl.textContent = (text + (appleDiagEl.textContent || '')).slice(0, 12000);
+        }
+
+        function decodeJwtUnsafe(token) {
+          try {
+            const parts = String(token || '').split('.');
+            if (parts.length < 2) return null;
+            const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+            const pad = b64.length % 4 ? '='.repeat(4 - (b64.length % 4)) : '';
+            return JSON.parse(atob(b64 + pad));
+          } catch {
+            return null;
+          }
+        }
+
         function attachStLogging(st) {
           try {
             if (!st) return st;
             if (typeof st.on === 'function') {
               st.on('notification', (msg) => {
                 console.warn('ST notification event:', msg);
+                pushAppleDiagnostic('st.notification', msg);
                 showOutcome(false, 'ST notification: ' + (msg && msg.message ? msg.message : msg), { source: 'st.notification', detail: msg });
               });
               st.on('error', (err) => {
                 console.error('ST error event:', err);
+                pushAppleDiagnostic('st.error', err);
                 showOutcome(false, 'ST error: ' + formatErrorMessage(err), { source: 'st.error', detail: err });
               });
             }
@@ -387,15 +414,27 @@
 
             setStatus('Initializing Apple Pay...');
             const initPayload = await createInitSession('APPLEPAY');
-            const st = SecureTrading({
-              jwt: initPayload.jwt
+            const merchantUrl = api(initPayload.processPath || '/api/v1/payments/applepay/process');
+            pushAppleDiagnostic('applepay.init.payload', {
+              paymentSessionId: initPayload.paymentSessionId,
+              processPath: initPayload.processPath || '/api/v1/payments/applepay/process',
+              merchantUrl,
+              merchantIdUsed: appleSiteReference,
+              countryCode: appleCountryCode,
+              currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
+              amount: normalizedAmount,
+              initJwtDecoded: decodeJwtUnsafe(initPayload.jwt)
             });
 
-            st.ApplePay({
+            const st = attachStLogging(SecureTrading({
+              jwt: initPayload.jwt
+            }));
+
+            const appleInit = st.ApplePay({
               buttonStyle: 'white-outline',
               buttonText: 'plain',
               merchantId: appleSiteReference,
-              merchantUrl: api(initPayload.processPath || '/api/v1/payments/applepay/process'),
+              merchantUrl,
               paymentRequest: {
                 countryCode: appleCountryCode,
                 currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
@@ -411,8 +450,21 @@
               buttonPlacement: 'st-apple-pay'
             });
 
+            if (appleInit && typeof appleInit.then === 'function') {
+              appleInit
+                .then((value) => pushAppleDiagnostic('applepay.init.then', value || { ok: true }))
+                .catch((err) => {
+                  pushAppleDiagnostic('applepay.init.catch', err);
+                  showOutcome(false, 'Apple Pay initialization failed: ' + formatErrorMessage(err), {
+                    source: 'apple-init-promise',
+                    error: err
+                  });
+                });
+            }
+
             showOutcome(true, 'Apple Pay initialized', { init: initPayload });
           } catch (error) {
+            pushAppleDiagnostic('applepay.init.exception', error);
             showOutcome(false, 'Apple Pay initialization failed: ' + formatErrorMessage(error), {
               source: 'apple-init'
             });
@@ -664,17 +716,30 @@
         }
 
         window.addEventListener('error', (event) => {
+          pushAppleDiagnostic('window.error', event.error || event.message || null);
           showOutcome(false, 'Error: ' + formatErrorMessage(event.error || event.message), { source: 'window.error' });
         });
 
         window.addEventListener('unhandledrejection', (event) => {
+          pushAppleDiagnostic('window.unhandledrejection', event.reason || null);
           showOutcome(false, 'Error: ' + formatErrorMessage(event.reason), { source: 'unhandledrejection' });
+        });
+
+        window.addEventListener('message', (event) => {
+          const origin = String(event.origin || '');
+          if (origin.includes('trustpayments') || origin.includes('securetrading')) {
+            pushAppleDiagnostic('window.message.trust', {
+              origin,
+              data: event.data
+            });
+          }
         });
 
         if (notificationFrame) {
           new MutationObserver(() => {
             const text = notificationFrame.textContent && notificationFrame.textContent.trim();
             if (text) {
+              pushAppleDiagnostic('notification-frame', text);
               setStatus('ST Notification: ' + text);
             }
           }).observe(notificationFrame, { childList: true, subtree: true, characterData: true });
