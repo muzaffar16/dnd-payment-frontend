@@ -405,11 +405,15 @@
 
         async function initApplePay() {
           try {
-            const appleSiteReference = window.APPLE_PAY_SITE_REFERENCE || window.APPLE_PAY_MERCHANT_ID || '';
+            const appleWalletMerchantId = String(window.APPLE_PAY_MERCHANT_ID || '').trim();
+            const appleSiteReference = String(window.APPLE_PAY_SITE_REFERENCE || '').trim();
             const appleCountryCode = String(window.APPLE_PAY_COUNTRY_CODE || 'US').trim().toUpperCase();
             const normalizedAmount = normalizeMoneyAmount(amountEl.value);
             if (!appleSiteReference) {
               throw new Error('Apple Pay site reference missing. Set window.APPLE_PAY_SITE_REFERENCE in config.js');
+            }
+            if (!appleWalletMerchantId || !/^merchant\.[A-Za-z0-9.-]+$/.test(appleWalletMerchantId)) {
+              throw new Error('Apple wallet merchant id is invalid. Set window.APPLE_PAY_MERCHANT_ID (e.g. merchant.com.yourdomain) in config.js');
             }
 
             setStatus('Initializing Apple Pay...');
@@ -419,7 +423,8 @@
               paymentSessionId: initPayload.paymentSessionId,
               processPath: initPayload.processPath || '/api/v1/payments/applepay/process',
               merchantUrl,
-              merchantIdUsed: appleSiteReference,
+              merchantIdUsed: appleWalletMerchantId,
+              siteReferenceUsed: appleSiteReference,
               countryCode: appleCountryCode,
               currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
               amount: normalizedAmount,
@@ -433,7 +438,7 @@
             const appleInit = st.ApplePay({
               buttonStyle: 'white-outline',
               buttonText: 'plain',
-              merchantId: appleSiteReference,
+              merchantId: appleWalletMerchantId,
               merchantUrl,
               paymentRequest: {
                 countryCode: appleCountryCode,
@@ -774,7 +779,8 @@
 
         console.log('DEBUG: payment page loaded', {
           apiBaseUrl: API_BASE_URL,
-          applePaySiteReference: window.APPLE_PAY_SITE_REFERENCE || window.APPLE_PAY_MERCHANT_ID || ''
+          applePaySiteReference: window.APPLE_PAY_SITE_REFERENCE || '',
+          applePayMerchantId: window.APPLE_PAY_MERCHANT_ID || ''
         });
         setStatus('Idle');
       } catch (e) {
