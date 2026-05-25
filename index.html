@@ -756,6 +756,18 @@
         }
 
         window.addEventListener('error', (event) => {
+          const isGenericCrossOriginScriptError =
+            String(event?.message || '').trim() === 'Script error.' &&
+            !event?.filename &&
+            !event?.lineno &&
+            !event?.colno &&
+            !event?.error;
+          if (isGenericCrossOriginScriptError) {
+            pushAppleDiagnostic('window.error.ignored_cross_origin', {
+              message: event?.message || null
+            });
+            return;
+          }
           const detail = {
             message: event?.message || null,
             filename: event?.filename || null,
