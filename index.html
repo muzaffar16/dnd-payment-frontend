@@ -395,6 +395,7 @@
               buttonStyle: 'white-outline',
               buttonText: 'plain',
               merchantId: appleSiteReference,
+              merchantUrl: api(initPayload.processPath || '/api/v1/payments/applepay/process'),
               paymentRequest: {
                 countryCode: appleCountryCode,
                 currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
