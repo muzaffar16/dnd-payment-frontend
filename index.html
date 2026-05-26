@@ -441,7 +441,7 @@
 
         async function initApplePay() {
           try {
-            const appleWalletMerchantId = String(window.APPLE_PAY_MERCHANT_ID || '').trim();
+            const appleMerchantId = String(window.APPLE_PAY_MERCHANT_ID || '').trim();
             const appleSiteReference = String(window.APPLE_PAY_SITE_REFERENCE || '').trim();
             const appleCountryCode = normalizeAppleCountryCode(window.APPLE_PAY_COUNTRY_CODE || 'US');
             const normalizedAmount = normalizeMoneyAmount(amountEl.value);
@@ -451,14 +451,10 @@
               showOutcome(false, msg, { source: 'apple-init-config' });
               return;
             }
-            if (
-              !appleWalletMerchantId ||
-              !/^merchant\.[A-Za-z0-9.-]+$/.test(appleWalletMerchantId) ||
-              /(^merchant\.com\.example$|\.example($|\.)|example)/i.test(appleWalletMerchantId)
-            ) {
-              const msg = 'Apple wallet merchant id is invalid. Use your real Apple-registered merchant id (not merchant.com.example).';
-              pushAppleDiagnostic('applepay.config.error', { msg, appleWalletMerchantId });
-              showOutcome(false, msg, { source: 'apple-init-config', appleWalletMerchantId });
+            if (!appleMerchantId) {
+              const msg = 'Apple Pay merchantId is missing. Set window.APPLE_PAY_MERCHANT_ID to your Trust site reference in config.js';
+              pushAppleDiagnostic('applepay.config.error', { msg, appleMerchantId, appleSiteReference });
+              showOutcome(false, msg, { source: 'apple-init-config', appleMerchantId, appleSiteReference });
               return;
             }
 
@@ -469,7 +465,7 @@
               paymentSessionId: initPayload.paymentSessionId,
               processPath: initPayload.processPath || '/api/v1/payments/applepay/process',
               merchantUrl,
-              merchantIdUsed: appleWalletMerchantId,
+              merchantIdUsed: appleMerchantId,
               siteReferenceUsed: appleSiteReference,
               countryCode: appleCountryCode,
               currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
@@ -484,7 +480,7 @@
             const appleInit = st.ApplePay({
               buttonStyle: 'white-outline',
               buttonText: 'plain',
-              merchantId: appleWalletMerchantId,
+              merchantId: appleMerchantId,
               merchantUrl,
               paymentRequest: {
                 countryCode: appleCountryCode,

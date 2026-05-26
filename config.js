@@ -1,7 +1,7 @@
 window.PAYMENT_API_BASE_URL = 'https://payment-service.dropndash.co.uk';
-// Trust site reference used by backend JWT init (not passed as Apple wallet merchant id)
+// Trust site reference used by backend JWT init and st.ApplePay merchantId
 window.APPLE_PAY_SITE_REFERENCE = 'test_rrominternational130858';
-// Apple wallet merchant id for st.ApplePay merchantId (must be Apple-registered format, e.g. merchant.com.example)
+// Apple Pay merchantId for st.ApplePay; Trust expects this to match the site reference
 window.APPLE_PAY_MERCHANT_ID = 'Jwt@rrominternational.com';
 window.APPLE_PAY_COUNTRY_CODE = 'GB';
 

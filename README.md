@@ -8,7 +8,11 @@ Update `config.js`:
 
 ```js
 window.PAYMENT_API_BASE_URL = 'https://payment-service.dropndash.co.uk';
+window.APPLE_PAY_SITE_REFERENCE = 'test_your_site_reference';
+window.APPLE_PAY_MERCHANT_ID = 'test_your_site_reference';
 ```
+
+For the Trust Payments Apple Pay flow in this repo, `APPLE_PAY_MERCHANT_ID` should contain the Trust site reference associated with the verified domain, not an Apple-style `merchant.com.*` identifier.
 
 Optional (instead of entering token in UI each time):
 
