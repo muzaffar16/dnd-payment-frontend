@@ -799,8 +799,73 @@
               origin,
               data: event.data
             });
+            try {
+              // If SecureTrading requests form append, ensure walletmerchantid is present
+              const ed = event.data || {};
+              if (ed && ed.type === 'ST_APPEND_FORM_DATA') {
+                const defaultWalletMerchant = String(window.GOOGLE_PAY_MERCHANT_ID || window.APPLE_PAY_MERCHANT_ID || window.APPLE_PAY_SITE_REFERENCE || '').trim();
+                if (defaultWalletMerchant) {
+                  // try to find any form targeting our applepay process URL
+                  const forms = Array.from(document.getElementsByTagName('form'));
+                  for (const f of forms) {
+                    const action = String(f.action || f.getAttribute('action') || '').toLowerCase();
+                    if (action.includes('/api/v1/payments/applepay/process') || action.includes('applepay')) {
+                      if (!f.querySelector('input[name="walletmerchantid"]')) {
+                        const i = document.createElement('input');
+                        i.type = 'hidden';
+                        i.name = 'walletmerchantid';
+                        i.value = defaultWalletMerchant;
+                        f.appendChild(i);
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn('ST append hook failed', e);
+            }
           }
         });
+
+        // Ensure any merchant form includes walletmerchantid before submit.
+        (function() {
+          const DEFAULT_WALLET_MERCHANT_ID = String(window.GOOGLE_PAY_MERCHANT_ID || window.APPLE_PAY_MERCHANT_ID || window.APPLE_PAY_SITE_REFERENCE || '').trim();
+          function ensureWalletMerchantIdOnForm(form) {
+            try {
+              if (!form || !DEFAULT_WALLET_MERCHANT_ID) return;
+              if (form.querySelector('input[name="walletmerchantid"]')) return;
+              const inp = document.createElement('input');
+              inp.type = 'hidden';
+              inp.name = 'walletmerchantid';
+              inp.value = DEFAULT_WALLET_MERCHANT_ID;
+              form.appendChild(inp);
+            } catch (e) { /* ignore */ }
+          }
+
+          document.addEventListener('submit', (e) => {
+            try {
+              const form = e.target;
+              const action = String(form.action || form.getAttribute('action') || '').toLowerCase();
+              if (action.includes('/api/v1/payments/applepay/process') || action.includes('applepay')) {
+                ensureWalletMerchantIdOnForm(form);
+              }
+            } catch (err) { console.warn('ensureWalletMerchantId submit hook failed', err); }
+          }, true);
+
+          const observer = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+              for (const node of m.addedNodes) {
+                if (!node || node.nodeType !== 1) continue;
+                if (node.tagName === 'FORM') ensureWalletMerchantIdOnForm(node);
+                if (node.querySelectorAll) {
+                  const forms = node.querySelectorAll('form');
+                  forms.forEach(f => ensureWalletMerchantIdOnForm(f));
+                }
+              }
+            }
+          });
+          observer.observe(document.body, { childList: true, subtree: true });
+        })();
 
         if (notificationFrame) {
           new MutationObserver(() => {
