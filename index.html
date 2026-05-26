@@ -137,7 +137,7 @@
   <script>
     (function() {
       try {
-        const TEST_AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNTg3MzdiZDgtZmIxNC00ODVlLWFlNWUtMjVlYzBhMWY1OWFjIiwiZW1haWwiOiJtdXNodGFxYWxpbWFsaWsxMUBnbWFpbC5jb20iLCJpYXQiOjE3Nzc5MTUzMDgsImV4cCI6MTc3ODAwMTcwOH0.lBQOrAjse973tq1YTOC4_u4IVHH2SxuJUYjxkLKatb4";
+        const TEST_AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZWM0OTVhMDItMjllZi00YzA3LWI1YWEtNzk1ODAyYmY4ZGQ3IiwiZW1haWwiOiJjaGFyd2FuaS40OEBnbWFpbC5jb20iLCJpYXQiOjE3Nzk4MTc4MTcsImV4cCI6MTc3OTkwNDIxN30.7e7OAMD_l4Sfbzmt7-LsXiofR45yKhsbljCI2GHmvOc";
 
         const statusEl = document.getElementById('status');
         const notificationFrame = document.getElementById('st-notification-frame');
@@ -407,7 +407,7 @@
               paymentRequest: {
                 environment: 'TEST',
                 merchantInfo: {
-                  merchantId: 'BCR2DN5TZC6I563Y',
+                  merchantId: String(window.GOOGLE_PAY_MERCHANT_ID || 'BCR2DN5TZC6I563Y'),
                   merchantName: 'RRoM International'
                 },
                 allowedPaymentMethods: [{
@@ -442,7 +442,7 @@
         async function initApplePay() {
           try {
             const appleSiteReference = String(window.APPLE_PAY_SITE_REFERENCE || '').trim();
-            const appleMerchantId = String(window.APPLE_PAY_MERCHANT_ID || appleSiteReference || '').trim();
+            const appleMerchantId = String(window.GOOGLE_PAY_MERCHANT_ID || window.APPLE_PAY_MERCHANT_ID || appleSiteReference || '').trim();
             const appleCountryCode = normalizeAppleCountryCode(window.APPLE_PAY_COUNTRY_CODE || 'US');
             const normalizedAmount = normalizeMoneyAmount(amountEl.value);
             if (!appleSiteReference) {

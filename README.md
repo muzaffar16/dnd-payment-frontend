@@ -10,6 +10,7 @@ Update `config.js`:
 window.PAYMENT_API_BASE_URL = 'https://payment-service.dropndash.co.uk';
 window.APPLE_PAY_SITE_REFERENCE = 'test_your_site_reference';
 window.APPLE_PAY_MERCHANT_ID = 'test_your_apple_pay_merchant_id';
+window.GOOGLE_PAY_MERCHANT_ID = 'BCR2DN5TZC6I563Y';
 ```
 
 For this checkout, Apple Pay uses `APPLE_PAY_MERCHANT_ID` when set, and falls back to `APPLE_PAY_SITE_REFERENCE` if the merchant id is omitted.
