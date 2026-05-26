@@ -442,7 +442,7 @@
         async function initApplePay() {
           try {
             const appleSiteReference = String(window.APPLE_PAY_SITE_REFERENCE || '').trim();
-            let appleMerchantId = String(window.APPLE_PAY_MERCHANT_ID || '').trim();
+            const appleMerchantId = String(window.APPLE_PAY_MERCHANT_ID || appleSiteReference || '').trim();
             const appleCountryCode = normalizeAppleCountryCode(window.APPLE_PAY_COUNTRY_CODE || 'US');
             const normalizedAmount = normalizeMoneyAmount(amountEl.value);
             if (!appleSiteReference) {
@@ -452,20 +452,9 @@
               return;
             }
             if (!appleMerchantId) {
-              appleMerchantId = appleSiteReference;
-            }
-            if (appleMerchantId !== appleSiteReference) {
-              pushAppleDiagnostic('applepay.config.warning', {
-                msg: 'Apple Pay merchantId differed from site reference; using the site reference value for Trust Payments.',
-                appleMerchantId,
-                appleSiteReference
-              });
-              appleMerchantId = appleSiteReference;
-            }
-            if (!appleMerchantId) {
-              const msg = 'Apple Pay merchantId is missing. Set window.APPLE_PAY_MERCHANT_ID to your Trust site reference in config.js';
-              pushAppleDiagnostic('applepay.config.error', { msg, appleMerchantId, appleSiteReference });
-              showOutcome(false, msg, { source: 'apple-init-config', appleMerchantId, appleSiteReference });
+              const msg = 'Apple Pay merchant id missing. Set window.APPLE_PAY_MERCHANT_ID in config.js';
+              pushAppleDiagnostic('applepay.config.error', { msg });
+              showOutcome(false, msg, { source: 'apple-init-config' });
               return;
             }
 
