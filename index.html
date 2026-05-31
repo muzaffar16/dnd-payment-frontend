@@ -458,31 +458,33 @@
               return;
             }
 
-            setStatus('Initializing Apple Pay...');
-            const initPayload = await createInitSession('APPLEPAY');
-            const merchantUrl = api(initPayload.processPath || '/api/v1/payments/applepay/process');
-            pushAppleDiagnostic('applepay.init.payload', {
-              paymentSessionId: initPayload.paymentSessionId,
-              processPath: initPayload.processPath || '/api/v1/payments/applepay/process',
-              merchantUrl,
-              merchantIdUsed: appleMerchantId,
+            setStatus('Initializing Apple Pay (bootstrap)...');
+            const bootstrapRes = await fetch(api('/api/v1/payments/applepay/bootstrap'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({})
+            });
+            if (!bootstrapRes.ok) {
+              const txt = await bootstrapRes.text();
+              throw new Error(txt || 'Failed to load Apple Pay bootstrap');
+            }
+            const bootstrap = await bootstrapRes.json();
+
+            pushAppleDiagnostic('applepay.bootstrap', {
+              bootstrap,
               siteReferenceUsed: appleSiteReference,
               countryCode: appleCountryCode,
               currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
-              amount: normalizedAmount,
-              initJwtDecoded: decodeJwtUnsafe(initPayload.jwt)
+              amount: normalizedAmount
             });
 
-            const st = attachStLogging(SecureTrading({
-              jwt: initPayload.jwt
-            }));
+            const st = attachStLogging(SecureTrading({ jwt: bootstrap.jwt }));
 
             const appleInit = st.ApplePay({
-              buttonStyle: 'white-outline',
-              buttonText: 'plain',
-              merchantId: appleMerchantId,
-              merchantUrl,
-              paymentRequest: {
+              buttonStyle: bootstrap.buttonStyle || 'white-outline',
+              buttonText: bootstrap.buttonText || 'plain',
+              merchantId: bootstrap.merchantId || appleMerchantId,
+              paymentRequest: bootstrap.paymentRequest || {
                 countryCode: appleCountryCode,
                 currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
                 merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
@@ -494,7 +496,7 @@
                   amount: normalizedAmount
                 }
               },
-              buttonPlacement: 'st-apple-pay'
+              buttonPlacement: bootstrap.buttonPlacement || 'st-apple-pay'
             });
 
             if (appleInit && typeof appleInit.then === 'function') {
