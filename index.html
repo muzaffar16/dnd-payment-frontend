@@ -57,6 +57,16 @@
     .modal-panel form { display: flex; flex-direction: column; gap: 10px; }
     .st-inline { display: flex; gap: 10px; max-width: 420px; }
     .st-inline > div { flex: 1; max-width: none; }
+    .applepay-diagnostics {
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 10px;
+      margin: 10px 0;
+      max-width: 900px;
+      font-size: 14px;
+      color: #334155;
+    }
   </style>
 </head>
 <body>
@@ -110,7 +120,7 @@
   <div class="section">
     <h3>Apple Pay</h3>
     <div id="st-apple-pay"></div>
-    <div id="applepay-diagnostics" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:10px;margin:10px 0;max-width:900px;font-size:14px;color:#334155"></div>
+    <div id="applepay-diagnostics" class="applepay-diagnostics"></div>
   </div>
 
   <div id="card-modal" class="modal-backdrop" aria-hidden="true">
@@ -442,7 +452,7 @@
         async function initApplePay() {
           try {
             const appleSiteReference = String(window.APPLE_PAY_SITE_REFERENCE || '').trim();
-            const appleMerchantId = String(window.GOOGLE_PAY_MERCHANT_ID || window.APPLE_PAY_MERCHANT_ID || appleSiteReference || '').trim();
+            const appleMerchantId = String(window.APPLE_PAY_MERCHANT_ID || appleSiteReference || '').trim();
             const appleCountryCode = normalizeAppleCountryCode(window.APPLE_PAY_COUNTRY_CODE || 'US');
             const normalizedAmount = normalizeMoneyAmount(amountEl.value);
             if (!appleSiteReference) {
@@ -458,33 +468,15 @@
               return;
             }
 
-            setStatus('Initializing Apple Pay (bootstrap)...');
-            const bootstrapRes = await fetch(api('/api/v1/payments/applepay/bootstrap'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({})
-            });
-            if (!bootstrapRes.ok) {
-              const txt = await bootstrapRes.text();
-              throw new Error(txt || 'Failed to load Apple Pay bootstrap');
-            }
-            const bootstrap = await bootstrapRes.json();
-
-            pushAppleDiagnostic('applepay.bootstrap', {
-              bootstrap,
-              siteReferenceUsed: appleSiteReference,
-              countryCode: appleCountryCode,
-              currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
-              amount: normalizedAmount
-            });
-
-            const st = attachStLogging(SecureTrading({ jwt: bootstrap.jwt }));
+            setStatus('Initializing Apple Pay...');
+            const initPayload = await createInitSession('APPLEPAY');
+            const st = attachStLogging(SecureTrading({ jwt: initPayload.jwt }));
 
             const appleInit = st.ApplePay({
-              buttonStyle: bootstrap.buttonStyle || 'white-outline',
-              buttonText: bootstrap.buttonText || 'plain',
-              merchantId: bootstrap.merchantId || appleMerchantId,
-              paymentRequest: bootstrap.paymentRequest || {
+              buttonStyle: 'white-outline',
+              buttonText: 'plain',
+              merchantId: appleMerchantId,
+              paymentRequest: {
                 countryCode: appleCountryCode,
                 currencyCode: (currencyEl.value || 'USD').trim().toUpperCase(),
                 merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
@@ -492,11 +484,11 @@
                 requiredBillingContactFields: ['postalAddress'],
                 requiredShippingContactFields: ['postalAddress', 'name', 'phone', 'email'],
                 total: {
-                  label: 'DropN-Dash',
+                  label: 'Trust Payments Merchant',
                   amount: normalizedAmount
                 }
               },
-              buttonPlacement: bootstrap.buttonPlacement || 'st-apple-pay'
+              buttonPlacement: 'st-apple-pay'
             });
 
             if (appleInit && typeof appleInit.then === 'function') {
