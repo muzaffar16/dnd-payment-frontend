@@ -35,6 +35,8 @@ npx serve . -l 4173
 
 Trust CDN blocks `localhost`/`127.0.0.1`, so open using your machine IPv4 URL (for example `http://192.168.1.25:4173`).
 
+The Apple association file at `/.well-known/apple-developer-merchantid-domain-association` is configured in `vercel.json` to return `text/plain` inline instead of downloading.
+
 ## Backend endpoints used
 
 - `POST /api/v1/payments/jwt/init` with `paymentMethod: "GOOGLEPAY" | "APPLEPAY" | "CARD"`
