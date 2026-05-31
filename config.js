@@ -1,5 +1,5 @@
 // For local testing point to the backend running on localhost:8003
-window.PAYMENT_API_BASE_URL = 'http://localhost:8003';
+window.PAYMENT_API_BASE_URL = 'https://payment-service.dropndash.co.uk/';
 // Trust site reference used by backend JWT init.
 window.APPLE_PAY_SITE_REFERENCE = 'test_rrominternational130858';
 // Apple Pay merchant id for st.ApplePay; falls back to APPLE_PAY_SITE_REFERENCE if left empty.
