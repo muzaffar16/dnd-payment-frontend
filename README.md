@@ -20,7 +20,7 @@ Optional (instead of entering token in UI each time):
 ```js
 window.PAYMENT_AUTH_TOKEN = '<user-or-store-bearer-token>';
 ```
-```
+
 Optional (recommended for saved cards owner scoping):
 
 ```js
@@ -35,7 +35,26 @@ npx serve . -l 4173
 
 Trust CDN blocks `localhost`/`127.0.0.1`, so open using your machine IPv4 URL (for example `http://192.168.1.25:4173`).
 
-On Vercel, the Apple association URL is configured with plain-text response headers so it can open inline instead of downloading.
+## Apple Pay domain verification (Vercel)
+
+The verification file lives at:
+
+`.well-known/apple-developer-merchantid-domain-association`
+
+`vercel.json` sets `Content-Type: text/plain` for that path (required by Apple / Trust Payments).
+
+After deploy, confirm:
+
+```bash
+curl -I https://dnd-payment-frontend.vercel.app/.well-known/apple-developer-merchantid-domain-association
+```
+
+Expected:
+
+- `HTTP/1.1 200 OK`
+- `Content-Type: text/plain`
+
+Register this exact domain with Trust Payments before testing Apple Pay in production.
 
 ## Backend endpoints used
 
